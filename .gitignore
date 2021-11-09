@@ -48,3 +48,8 @@ debug.log
 # Temporary files.
 tmp/
 temp/
+
+# Python files.
+__pycache__/
+*.py[cod]
+*$py.class

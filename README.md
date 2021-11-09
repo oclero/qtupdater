@@ -114,8 +114,39 @@ curl http://your-server/your-app/win/YourApp-1.2.3-Windows-64bit.exe
 
 ## Example
 
+### Server
+
+A _very basic_ server written in Python is included as testing purposes. Don't use in production environment!
+
+```bash
+# Start with default config.
+python dev_server/main.py
+
+# ... Or set your own config.
+python dev_server/main.py --dir ../your-directory --port 8000 --address 127.0.0.1
+```
+
+### Client
+
 ```c++
-TODO
+// Create an updater.
+oclero::QtUpdater updater("https://your-server/update-api/");
+
+// Subscribe to all necessary signals. See documentation for complete list.
+QObject::connect(&updater, &oclero::QtUpdater::updateAvailableChanged,
+                 &updater, [&updater]() {
+  if (updater.updateAvailable()) {
+    qDebug() << "Update available! You have: "
+      << qPrintable(updater.currentVersion())
+      << " - Latest is: "
+      << qPrintable(updater.latestVersion());
+  } else {
+    qDebug() << "You have the latest version.";
+  }
+});
+
+// Start checking.
+updater.checkForUpdate();
 ```
 
 ## Author
