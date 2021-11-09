@@ -272,7 +272,7 @@ QtDownloader::QtDownloader(QObject* parent)
 
 QtDownloader::~QtDownloader() = default;
 
-void QtDownloader::downloadFile(QUrl const& url, const QString& localDir, FileFinishedCallback const&& onFinished,
+void QtDownloader::downloadFile(const QUrl& url, const QString& localDir, const FileFinishedCallback&& onFinished,
   const ProgressCallback&& onProgress) {
   if (_impl->isDownloading) {
     if (onFinished) {
@@ -291,7 +291,7 @@ void QtDownloader::downloadFile(QUrl const& url, const QString& localDir, FileFi
 }
 
 void QtDownloader::downloadData(
-  QUrl const& url, DataFinishedCallback const&& onFinished, ProgressCallback const&& onProgress) {
+  const QUrl& url, const DataFinishedCallback&& onFinished, const ProgressCallback&& onProgress) {
   if (_impl->isDownloading) {
     if (onFinished) {
       onFinished(ErrorCode::AlreadyDownloading, {});

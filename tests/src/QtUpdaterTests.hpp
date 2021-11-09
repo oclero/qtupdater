@@ -2,11 +2,11 @@
 
 #include <QObject>
 
-class UpdaterTests : public QObject {
+class Tests : public QObject {
   Q_OBJECT
 
 public:
-  UpdaterTests();
+  using QObject::QObject;
 
 private slots:
   void test_emptyServerUrl();

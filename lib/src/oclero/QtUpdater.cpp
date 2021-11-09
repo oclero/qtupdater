@@ -467,7 +467,7 @@ struct QtUpdater::Impl {
     return UpdateInfo{ localJSON, localInstaller, localChangelog };
   }
 
-  void onCheckForUpdateFinished(QByteArray const& data) {
+  void onCheckForUpdateFinished(const QByteArray & data) {
     const auto notifyUpdateAvailable = [this](bool const newUpdateAvailable) {
       // Signals for GUI.
       setState(Idle);
@@ -710,7 +710,7 @@ void QtUpdater::forceCheckForUpdate() {
 
   _impl->downloader.downloadData(
     url,
-    [this](QtDownloader::ErrorCode const errorCode, QByteArray const& data) {
+    [this](QtDownloader::ErrorCode const errorCode, const QByteArray & data) {
       if (errorCode != QtDownloader::ErrorCode::NoError) {
         emit checkForUpdateOnlineFailed();
       }

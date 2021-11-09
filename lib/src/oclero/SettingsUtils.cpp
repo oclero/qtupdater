@@ -6,7 +6,7 @@ void clearSetting(const char* key) {
   settings.remove(key);
 }
 
-void clearSetting(QString const& key) {
+void clearSetting(const QString& key) {
   const auto byteArray = key.toUtf8();
   const char* rawKey = byteArray.constData();
   clearSetting(rawKey);

@@ -44,19 +44,19 @@ public:
   };
   Q_ENUM(InvalidChecksumBehavior)
 
-  using FileFinishedCallback = std::function<void(ErrorCode const, QString const&)>;
-  using DataFinishedCallback = std::function<void(ErrorCode const, QByteArray const&)>;
+  using FileFinishedCallback = std::function<void(ErrorCode const, const QString&)>;
+  using DataFinishedCallback = std::function<void(ErrorCode const, const QByteArray &)>;
   using ProgressCallback = std::function<void(int const)>;
 
 public:
   QtDownloader(QObject* parent = nullptr);
   ~QtDownloader();
 
-  void downloadFile(QUrl const& url, const QString& localDir, FileFinishedCallback const&& onFinished,
+  void downloadFile(const QUrl& url, const QString& localDir, const FileFinishedCallback&& onFinished,
     const ProgressCallback&& onProgress = nullptr);
 
   void downloadData(
-    QUrl const& url, DataFinishedCallback const&& onFinished, ProgressCallback const&& onProgress = nullptr);
+    const QUrl& url, const DataFinishedCallback&& onFinished, const ProgressCallback&& onProgress = nullptr);
 
   static bool verifyFileChecksum(const QString& filePath, const QString& checksum, ChecksumType const checksumType,
     InvalidChecksumBehavior const behavior = InvalidChecksumBehavior::RemoveFile);

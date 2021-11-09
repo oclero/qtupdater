@@ -28,9 +28,9 @@ constexpr auto CONTENT_TYPE_DMG = "application/application/vnd.apple.diskimage";
 constexpr auto CONTENT_TYPE_MD = "text/markdown";
 
 #if defined(Q_OS_WIN)
-static const auto CONTENT_TYPE_INSTALLER = CONTENT_TYPE_EXE;
+constexpr auto CONTENT_TYPE_INSTALLER = CONTENT_TYPE_EXE;
 #elif defined(Q_OS_MAC)
-static const auto CONTENT_TYPE_INSTALLER = CONTENT_TYPE_DMG;
+constexpr auto CONTENT_TYPE_INSTALLER = CONTENT_TYPE_DMG;
 #endif
 
 constexpr auto DUMMY_INSTALLER_DATA = "This is just dummy data to simulate an installer file";
@@ -78,11 +78,7 @@ QString getAppCast(const QString& version) {
 }
 } // namespace
 
-UpdaterTests::UpdaterTests() {
-  QCoreApplication::setApplicationVersion(CURRENT_VERSION);
-}
-
-void UpdaterTests::test_emptyServerUrl() {
+void Tests::test_emptyServerUrl() {
   QtUpdater updater("");
   updater.setFrequency(QtUpdater::Frequency::Never);
 
@@ -101,7 +97,7 @@ void UpdaterTests::test_emptyServerUrl() {
   QVERIFY(hasStartedChecking == false);
 }
 
-void UpdaterTests::test_invalidServerUrl() {
+void Tests::test_invalidServerUrl() {
   QtUpdater updater("dummyInvalidUrl");
   updater.setFrequency(QtUpdater::Frequency::Never);
 
@@ -126,7 +122,7 @@ void UpdaterTests::test_invalidServerUrl() {
   QVERIFY(failed);
 }
 
-void UpdaterTests::test_validServerUrlButNoServer() {
+void Tests::test_validServerUrlButNoServer() {
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
   updater.setFrequency(QtUpdater::Frequency::Never);
@@ -153,7 +149,7 @@ void UpdaterTests::test_validServerUrlButNoServer() {
   QVERIFY(error);
 }
 
-void UpdaterTests::test_validAppcastUrl() {
+void Tests::test_validAppcastUrl() {
   // Server.
   httplib::Server server;
   server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
@@ -211,7 +207,7 @@ void UpdaterTests::test_validAppcastUrl() {
   QVERIFY(!done);
 }
 
-void UpdaterTests::test_validAppcastUrlButNoServer() {
+void Tests::test_validAppcastUrlButNoServer() {
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
   updater.setFrequency(QtUpdater::Frequency::EveryDay);
@@ -244,7 +240,7 @@ void UpdaterTests::test_validAppcastUrlButNoServer() {
   QVERIFY(latestVersion == CURRENT_VERSION);
 }
 
-void UpdaterTests::test_validAppcastUrlButNoUpdate() {
+void Tests::test_validAppcastUrlButNoUpdate() {
   // Server.
   httplib::Server server;
   server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
@@ -312,7 +308,7 @@ void UpdaterTests::test_validAppcastUrlButNoUpdate() {
   QVERIFY(!latestVersionChanged);
 }
 
-void UpdaterTests::test_validChangelogUrl() {
+void Tests::test_validChangelogUrl() {
   // Server.
   httplib::Server server;
   server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
@@ -378,7 +374,7 @@ void UpdaterTests::test_validChangelogUrl() {
   QVERIFY(latestChangelog == DUMMY_CHANGELOG);
 }
 
-void UpdaterTests::test_invalidChangelogUrl() {
+void Tests::test_invalidChangelogUrl() {
   // Server.
   httplib::Server server;
   server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
@@ -439,7 +435,7 @@ void UpdaterTests::test_invalidChangelogUrl() {
   QVERIFY(latestChangelog.isEmpty());
 }
 
-void UpdaterTests::test_validInstallerUrl() {
+void Tests::test_validInstallerUrl() {
   // Server.
   httplib::Server server;
   server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
@@ -517,7 +513,7 @@ void UpdaterTests::test_validInstallerUrl() {
   QVERIFY(!installationFailed);
 }
 
-void UpdaterTests::test_invalidInstallerUrl() {
+void Tests::test_invalidInstallerUrl() {
   // Server.
   httplib::Server server;
   server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
