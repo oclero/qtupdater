@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.19.0)
 enable_testing()
 
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include(DeployQt)
+
 # Set project information.
 project("QtUpdater"
   LANGUAGES CXX
