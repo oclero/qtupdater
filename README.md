@@ -120,10 +120,10 @@ A _very basic_ server written in Python is included as testing purposes. Don't u
 
 ```bash
 # Start with default config.
-python dev_server/main.py
+python examples/dev_server/main.py
 
 # ... Or set your own config.
-python dev_server/main.py --dir ../your-directory --port 8000 --address 127.0.0.1
+python examples/dev_server/main.py --dir ../your-directory --port 8000 --address 127.0.0.1
 ```
 
 ### Client
