@@ -35,7 +35,7 @@ class QtUpdater : public QObject {
   Q_PROPERTY(QDateTime lastCheckTime READ lastCheckTime NOTIFY lastCheckTimeChanged)
 
 public:
-  enum State {
+  enum class State {
     Idle,
     CheckingForUpdate,
     DownloadingChangelog,
@@ -44,7 +44,7 @@ public:
   };
   Q_ENUM(State)
 
-  enum Frequency {
+  enum class Frequency {
     Never,
     EveryStart,
     EveryHour,

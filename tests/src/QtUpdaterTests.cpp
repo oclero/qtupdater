@@ -27,12 +27,6 @@ constexpr auto CONTENT_TYPE_EXE = "application/vnd.microsoft.portable-executable
 constexpr auto CONTENT_TYPE_DMG = "application/application/vnd.apple.diskimage";
 constexpr auto CONTENT_TYPE_MD = "text/markdown";
 
-#if defined(Q_OS_WIN)
-constexpr auto CONTENT_TYPE_INSTALLER = CONTENT_TYPE_EXE;
-#elif defined(Q_OS_MAC)
-constexpr auto CONTENT_TYPE_INSTALLER = CONTENT_TYPE_DMG;
-#endif
-
 constexpr auto DUMMY_INSTALLER_DATA = "This is just dummy data to simulate an installer file";
 
 // Dummy markdown changelog.
@@ -55,7 +49,8 @@ constexpr auto APPCAST_TEMPLATE = R"({
 "changelogUrl": "%5/%3/changelog-%1.0.md"
 })";
 
-static const QString SERVER_URL_FOR_CLIENT = "http://" + QString(SERVER_URL) + ':' + QString::number(SERVER_PORT);
+static const QString SERVER_URL_FOR_CLIENT =
+  "http://" + QString(SERVER_URL) + ':' + QString::number(SERVER_PORT) + "/win?version=latest";
 
 QString getInstallerChecksum(const char* data) {
   QByteArray installerData(data);
@@ -67,13 +62,8 @@ QString getInstallerChecksum(const char* data) {
 
 QString getAppCast(const QString& version) {
   static const auto checksum = getInstallerChecksum(DUMMY_INSTALLER_DATA);
-#if defined(Q_OS_WIN)
   static const QString platform = "win";
   static const QString extension = "exe";
-#elif defined(Q_OS_MAC)
-  static const QString platform = "mac";
-  static const QString extension = "dmg";
-#endif
   return QString(APPCAST_TEMPLATE).arg(version).arg(checksum).arg(platform).arg(extension).arg(SERVER_URL_FOR_CLIENT);
 }
 } // namespace
@@ -443,7 +433,7 @@ void Tests::test_validInstallerUrl() {
     response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
   });
   server.Get(INSTALLER_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
-    response.set_content(DUMMY_INSTALLER_DATA, CONTENT_TYPE_INSTALLER);
+    response.set_content(DUMMY_INSTALLER_DATA, CONTENT_TYPE_EXE);
   });
 
   // Start server in a thread.

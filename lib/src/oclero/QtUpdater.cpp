@@ -2,8 +2,8 @@
 
 #include <oclero/QtDownloader.hpp>
 
-#include "EnumUtils.hpp"
-#include "SettingsUtils.hpp"
+#include "utils/EnumUtils.hpp"
+#include "utils/SettingsUtils.hpp"
 
 #include <QLoggingCategory>
 #include <QFile>
@@ -92,34 +92,32 @@ constexpr auto TEMP_DIRECTORY = "/Update";
 
 class LazyFileContent {
 public:
-  LazyFileContent(const QString& p = {})
-    : path(p) {}
+  LazyFileContent(const QString& path = {})
+    : _path(path) {}
 
-  void setPath(const QString& p) {
-    if (p != path) {
-      path = p;
-      content.reset();
+  void setPath(const QString& path) {
+    if (path != _path) {
+      _path = path;
+      _content.reset();
     }
   }
 
   const QString& getContent() {
-    if (!content.has_value()) {
-      QFile file(path);
-      if (path.isEmpty()) {
-        content = QString(); // Mark as read.
-      } else if (file.open(QIODevice::ReadOnly)) {
-        content = QString::fromUtf8(file.readAll());
+    if (!_content.has_value()) {
+      QFile file(_path);
+      if (file.open(QIODevice::ReadOnly)) {
+        _content = QString::fromUtf8(file.readAll());
       } else {
-        content = QString(); // Mark as read.
+        _content = QString(); // Mark as read.
       }
       file.close();
     }
-    return content.value();
+    return _content.value();
   }
 
 private:
-  QString path;
-  std::optional<QString> content;
+  QString _path;
+  std::optional<QString> _content;
 };
 
 struct UpdateJSON {
@@ -330,18 +328,6 @@ struct QtUpdater::Impl {
     }
   }
 
-  QUrl getCheckForUpdatesUrl() const {
-    // Ask server for JSON that contains update information.
-    const auto query = "?version=latest";
-#if defined(Q_OS_WIN)
-    return serverUrl + "/win" + query;
-#elif defined(Q_OS_MAC)
-    return serverUrl + "/mac" + query;
-#else
-    return QUrl{};
-#endif
-  }
-
   const UpdateInfo* mostRecentUpdate() const {
     if (onlineUpdateInfo.isValid()) {
       // Priority is the update from the server.
@@ -358,7 +344,7 @@ struct QtUpdater::Impl {
     const auto update = mostRecentUpdate();
     if (update && update->isValid()) {
       const auto currentVersionNumber = QVersionNumber::fromString(currentVersion);
-      const auto newVersionNumber = update->json.version;
+      const auto& newVersionNumber = update->json.version;
       const auto newUpdateAvailable = QVersionNumber::compare(currentVersionNumber, newVersionNumber) < 0;
       return newUpdateAvailable;
     }
@@ -412,18 +398,18 @@ struct QtUpdater::Impl {
     const auto optFilePath = tryLoadSetting<QString>(SETTINGS_KEY_LASTUPDATEJSON);
 
     if (!optFilePath.has_value()) {
-      return UpdateInfo();
+      return UpdateInfo{};
     }
 
-    const auto filePath = optFilePath.value();
+    const auto& filePath = optFilePath.value();
     if (filePath.isEmpty()) {
-      return UpdateInfo();
+      return UpdateInfo{};
     }
 
     QFile infoFile(filePath);
     if (!infoFile.exists()) {
       infoFile.close();
-      return UpdateInfo();
+      return UpdateInfo{};
     }
 
 #if UPDATER_ENABLE_DEBUG
@@ -436,18 +422,18 @@ struct QtUpdater::Impl {
       qCDebug(CATEGORY_UPDATER) << "Cannot open local JSON file";
 #endif
       infoFile.close();
-      return UpdateInfo();
+      return UpdateInfo{};
     }
 
     // Read it.
-    const auto localJSON = UpdateJSON(infoFile.readAll());
+    const auto localJSON = UpdateJSON{ infoFile.readAll() };
     infoFile.close();
 
     if (!localJSON.isValid()) {
 #if UPDATER_ENABLE_DEBUG
       qCDebug(CATEGORY_UPDATER) << "Previously downloaded data is invalid";
 #endif
-      return UpdateInfo();
+      return UpdateInfo{};
     }
 
     // Check presence of changelog and installer files along with the JSON file.
@@ -461,16 +447,16 @@ struct QtUpdater::Impl {
       localChangelog.exists() && localChangelog.isFile() && localInstaller.exists() && localInstaller.isFile();
     if (!allFilesExist) {
       utils::clearDirectoryContent(downloadsDir);
-      return UpdateInfo();
+      return UpdateInfo{};
     }
 
     return UpdateInfo{ localJSON, localInstaller, localChangelog };
   }
 
-  void onCheckForUpdateFinished(const QByteArray & data) {
-    const auto notifyUpdateAvailable = [this](bool const newUpdateAvailable) {
+  void onCheckForUpdateFinished(const QByteArray& data) {
+    const auto notifyUpdateAvailable = [this](const bool newUpdateAvailable) {
       // Signals for GUI.
-      setState(Idle);
+      setState(State::Idle);
       emit owner.checkForUpdateFinished();
       if (newUpdateAvailable) {
         emit owner.latestVersionChanged();
@@ -479,7 +465,7 @@ struct QtUpdater::Impl {
     };
 
     // Save online info.
-    const auto downloadedJSON = UpdateJSON(data);
+    const auto downloadedJSON = UpdateJSON{ data };
     onlineUpdateInfo = UpdateInfo{ downloadedJSON };
 
     // Check for previously downloaded update, locally.
@@ -536,7 +522,7 @@ struct QtUpdater::Impl {
 #endif
     onlineUpdateInfo.changelog = QFileInfo(filePath);
 
-    setState(Idle);
+    setState(State::Idle);
     emit owner.changelogDownloadFinished();
     emit owner.changelogAvailableChanged();
   }
@@ -559,7 +545,7 @@ struct QtUpdater::Impl {
 #if UPDATER_ENABLE_DEBUG
     qCDebug(CATEGORY_UPDATER) << "Checksum is valid";
 #endif
-    setState(Idle);
+    setState(State::Idle);
     emit owner.installerDownloadFinished();
     emit owner.installerAvailableChanged();
   }
@@ -676,7 +662,7 @@ QDateTime QtUpdater::lastCheckTime() const {
 #pragma region Public slots
 
 void QtUpdater::checkForUpdate() {
-  if (state() != Idle || _impl->serverUrl.isEmpty()) {
+  if (state() != State::Idle || _impl->serverUrl.isEmpty()) {
     return;
   }
 
@@ -686,7 +672,7 @@ void QtUpdater::checkForUpdate() {
 }
 
 void QtUpdater::forceCheckForUpdate() {
-  if (state() != Idle) {
+  if (state() != State::Idle) {
     return;
   }
 
@@ -700,17 +686,16 @@ void QtUpdater::forceCheckForUpdate() {
   emit lastCheckTimeChanged();
 
   // Start checking.
-  _impl->setState(CheckingForUpdate);
+  _impl->setState(State::CheckingForUpdate);
   emit checkForUpdateStarted();
 
-  const auto url = _impl->getCheckForUpdatesUrl();
 #if UPDATER_ENABLE_DEBUG
-  qCDebug(CATEGORY_UPDATER) << "Checking for updates at" << url.toString() << "...";
+  qCDebug(CATEGORY_UPDATER) << "Checking for updates @" << url.toString() << "...";
 #endif
 
   _impl->downloader.downloadData(
-    url,
-    [this](QtDownloader::ErrorCode const errorCode, const QByteArray & data) {
+    _impl->serverUrl,
+    [this](QtDownloader::ErrorCode const errorCode, const QByteArray& data) {
       if (errorCode != QtDownloader::ErrorCode::NoError) {
         emit checkForUpdateOnlineFailed();
       }
@@ -722,7 +707,7 @@ void QtUpdater::forceCheckForUpdate() {
 }
 
 void QtUpdater::downloadChangelog() {
-  if (state() != Idle) {
+  if (state() != State::Idle) {
     return;
   }
 
@@ -734,7 +719,7 @@ void QtUpdater::downloadChangelog() {
     return;
   }
 
-  _impl->setState(DownloadingChangelog);
+  _impl->setState(State::DownloadingChangelog);
   emit changelogDownloadStarted();
   const auto& url = _impl->onlineUpdateInfo.json.changelogUrl;
 
@@ -762,7 +747,7 @@ void QtUpdater::downloadChangelog() {
 }
 
 void QtUpdater::downloadInstaller() {
-  if (state() != Idle) {
+  if (state() != State::Idle) {
     return;
   }
 
@@ -775,7 +760,7 @@ void QtUpdater::downloadInstaller() {
     return;
   }
 
-  _impl->setState(DownloadingInstaller);
+  _impl->setState(State::DownloadingInstaller);
   emit installerDownloadStarted();
 
   const auto& url = _impl->onlineUpdateInfo.json.installerUrl;
@@ -817,7 +802,7 @@ void QtUpdater::installUpdate(bool const dry) {
     emit installationFailed();
   };
 
-  if (state() != Idle || !_impl->installerAvailable()) {
+  if (state() != State::Idle || !_impl->installerAvailable()) {
     raiseError("Installer not available");
     return;
   }
@@ -826,7 +811,7 @@ void QtUpdater::installUpdate(bool const dry) {
 #if UPDATER_ENABLE_DEBUG
   qCDebug(CATEGORY_UPDATER) << "Installing update...";
 #endif
-  _impl->setState(InstallingUpdate);
+  _impl->setState(State::InstallingUpdate);
 
   // Should not be null because 'installerAvailable()' returned 'true'.
   const auto update = _impl->mostRecentUpdate();
@@ -853,7 +838,7 @@ void QtUpdater::installUpdate(bool const dry) {
 
   // For the tests, we don't stop the application.
   if (dry) {
-    _impl->setState(Idle);
+    _impl->setState(State::Idle);
     emit installationFinished();
     return;
   }
@@ -872,7 +857,7 @@ void QtUpdater::installUpdate(bool const dry) {
 #endif
   if (!installerProcessSuccess) {
     raiseError("Failed to start uninstaller");
-    _impl->setState(Idle);
+    _impl->setState(State::Idle);
     return;
   }
 #if UPDATER_ENABLE_DEBUG

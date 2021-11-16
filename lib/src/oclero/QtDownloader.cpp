@@ -1,6 +1,6 @@
 #include <oclero/QtDownloader.hpp>
 
-#include "DeleteLaterScopedPointer.hpp"
+#include "utils/DeleteLaterScopedPointer.hpp"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>

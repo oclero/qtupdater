@@ -12,10 +12,10 @@ set(HEADERS
 )
 
 set(SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/DeleteLaterScopedPointer.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/EnumUtils.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/SettingsUtils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/SettingsUtils.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/DeleteLaterScopedPointer.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/EnumUtils.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/SettingsUtils.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/SettingsUtils.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtUpdater.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtDownloader.cpp
 )

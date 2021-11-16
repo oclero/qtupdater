@@ -69,11 +69,7 @@ Updater for Qt5 (auto-updates).
 
 The protocol is the following:
 
-1. The client sends a request to:
-
-   ```xml
-   http://<HOST>:<PORT>/your-app/<PLATFORM>[?version=<VERSION>]
-   ```
+1. The client sends a request to the endpoint URL of your choice.
 
 2. The server answers by sending back an _appcast_: a JSON file containing the necessary information. The _appcast_ must look like the following:
 
@@ -88,29 +84,11 @@ The protocol is the following:
    }
    ```
 
-3. The client downloads the changelog from `changelogUrl`, if any provided.
+3. The client downloads the changelog from `changelogUrl`, if any provided (facultative step).
 
 4. The client downloads the installer from `installerUrl`, if any provided.
 
-5. The client starts the installer and quits.
-
-### Client requests examples
-
-Some examples of valid requests:
-
-```bash
-# The client must be able to retrieve the latest version.
-curl http://your-server/your-app/win?version=latest
-
-# This is equivalent to getting the latest version.
-curl http://your-server/your-app/win
-
-# If the following version exist, the request is valid.
-curl http://your-server/your-app/win?version=1.2.3
-
-# If the file exist, the request is valid.
-curl http://your-server/your-app/win/YourApp-1.2.3-Windows-64bit.exe
-```
+5. The client starts the installer and quits, if necessary.
 
 ## Example
 
@@ -124,6 +102,22 @@ python examples/dev_server/main.py
 
 # ... Or set your own config.
 python examples/dev_server/main.py --dir ../your-directory --port 8000 --address 127.0.0.1
+```
+
+Some examples of valid requests for this server:
+
+```bash
+# The client must be able to retrieve the latest version.
+curl http://your-server/your-app/win?version=latest
+
+# This is equivalent to getting the latest version.
+curl http://your-server/your-app/win
+
+# If the following version exist, the request is valid.
+curl http://your-server/your-app/win?version=1.2.3
+
+# If the file exist, the request is valid.
+curl http://your-server/your-app/win/YourApp-1.2.3-Windows-64bit.exe
 ```
 
 ### Client
