@@ -27,4 +27,3 @@ if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
   # Examples.
   add_subdirectory(examples/basic)
 endif()
-
