@@ -23,11 +23,12 @@ namespace oclero {
 class QtUpdater : public QObject {
   Q_OBJECT
 
+  Q_PROPERTY(QString temporaryDirectoryPath READ temporaryDirectoryPath WRITE setTemporaryDirectoryPath NOTIFY
+      temporaryDirectoryPathChanged)
   Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateAvailableChanged)
   Q_PROPERTY(bool installerAvailable READ installerAvailable NOTIFY installerAvailableChanged)
   Q_PROPERTY(QString currentVersion READ currentVersion)
   Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY latestVersionChanged)
-  Q_PROPERTY(QString currentChangelog READ currentChangelog NOTIFY currentChangelogChanged)
   Q_PROPERTY(QString latestChangelog READ latestChangelog NOTIFY latestChangelogChanged)
   Q_PROPERTY(State state READ state NOTIFY stateChanged)
   Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
@@ -55,25 +56,33 @@ public:
   };
   Q_ENUM(Frequency)
 
+  enum class InstallMode {
+    ExecuteFile,
+    MoveFile,
+  };
+  Q_ENUM(InstallMode)
+
 public:
   explicit QtUpdater(QObject* parent = nullptr);
   QtUpdater(const QString& serverUrl, QObject* parent = nullptr);
   ~QtUpdater();
 
 public:
+  const QString& temporaryDirectoryPath() const;
   bool updateAvailable() const;
   bool changelogAvailable() const;
   bool installerAvailable() const;
   const QString& currentVersion() const;
   QString latestVersion() const;
-  const QString& currentChangelog() const;
   const QString& latestChangelog() const;
   State state() const;
   const QString& serverUrl() const;
   Frequency frequency() const;
   QDateTime lastCheckTime() const;
+  int checkTimeout() const;
 
 public slots:
+  void setTemporaryDirectoryPath(const QString& path);
   void setServerUrl(const QString& serverUrl);
   void setFrequency(Frequency frequency);
   void checkForUpdate();
@@ -81,16 +90,19 @@ public slots:
   void downloadChangelog();
   void downloadInstaller();
   // Set dry to true if you don't want to quit the application.
-  void installUpdate(bool const dry = false);
+  void installUpdate(InstallMode const mode, const QString& moveDestinationDir = {}, const bool quitAfter = true,
+    const bool dry = false);
+  void setCheckTimeout(int timeout);
 
 signals:
+  void temporaryDirectoryPathChanged();
   void latestVersionChanged();
-  void currentChangelogChanged();
   void latestChangelogChanged();
   void stateChanged();
   void serverUrlChanged();
   void frequencyChanged();
   void lastCheckTimeChanged();
+  void checkTimeoutChanged();
 
   void checkForUpdateStarted();
   void checkForUpdateProgressChanged(int percentage);

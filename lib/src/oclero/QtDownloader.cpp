@@ -32,6 +32,7 @@ struct QtDownloader::Impl {
   QString localDir;
   QString downloadedFilepath;
   QByteArray downloadedData;
+  int timeout{ DefaultTimeout };
 
   Impl(QtDownloader& o)
     : owner(o) {
@@ -97,7 +98,9 @@ struct QtDownloader::Impl {
       return;
     }
 
-    auto reply = manager.get(QNetworkRequest(url));
+    auto request = QNetworkRequest(url);
+    request.setTransferTimeout(timeout);
+    auto reply = manager.get(request);
     if (onProgress) {
       onProgress(0);
       progressConnection = QObject::connect(
@@ -134,7 +137,9 @@ struct QtDownloader::Impl {
       return;
     }
 
-    auto reply = manager.get(QNetworkRequest(url));
+    auto request = QNetworkRequest(url);
+    request.setTransferTimeout(timeout);
+    auto reply = manager.get(request);
 
     const auto error = reply->error();
     if (error != QNetworkReply::NoError) {
@@ -273,7 +278,7 @@ QtDownloader::QtDownloader(QObject* parent)
 QtDownloader::~QtDownloader() = default;
 
 void QtDownloader::downloadFile(const QUrl& url, const QString& localDir, const FileFinishedCallback&& onFinished,
-  const ProgressCallback&& onProgress) {
+  const ProgressCallback&& onProgress, const int timeout) {
   if (_impl->isDownloading) {
     if (onFinished) {
       onFinished(ErrorCode::AlreadyDownloading, {});
@@ -286,12 +291,13 @@ void QtDownloader::downloadFile(const QUrl& url, const QString& localDir, const 
   _impl->onFileFinished = onFinished;
   _impl->onDataFinished = nullptr;
   _impl->onProgress = onProgress;
+  _impl->timeout = timeout;
 
   _impl->startFileDownload();
 }
 
 void QtDownloader::downloadData(
-  const QUrl& url, const DataFinishedCallback&& onFinished, const ProgressCallback&& onProgress) {
+  const QUrl& url, const DataFinishedCallback&& onFinished, const ProgressCallback&& onProgress, const int timeout) {
   if (_impl->isDownloading) {
     if (onFinished) {
       onFinished(ErrorCode::AlreadyDownloading, {});
@@ -304,6 +310,7 @@ void QtDownloader::downloadData(
   _impl->onFileFinished = nullptr;
   _impl->onDataFinished = onFinished;
   _impl->onProgress = onProgress;
+  _impl->timeout = timeout;
 
   _impl->startDataDownload();
 }

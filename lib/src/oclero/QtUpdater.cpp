@@ -47,7 +47,7 @@ void clearDirectoryContent(const QString& dirPath, const QStringList& extensionF
   }
 }
 
-QString getTemporaryDirectoryPath() {
+QString getDefaultTemporaryDirectoryPath() {
   QString result;
 
   const auto dirs = QStandardPaths::standardLocations(QStandardPaths::StandardLocation::TempLocation);
@@ -66,7 +66,7 @@ QString getTemporaryDirectoryPath() {
       }
     }
 
-    result += '/' + subDirectoriesList.join('/');
+    result += '/' + subDirectoriesList.join('/') + "/Update";
   }
 
   return result;
@@ -88,7 +88,6 @@ constexpr auto SETTINGS_KEY_LASTUPDATEJSON = "Update/LastUpdateJSON";
 
 constexpr auto CURRENT_CHANGELOG_FILEPATH = "CHANGELOG.md";
 
-constexpr auto TEMP_DIRECTORY = "/Update";
 
 class LazyFileContent {
 public:
@@ -104,13 +103,17 @@ public:
 
   const QString& getContent() {
     if (!_content.has_value()) {
-      QFile file(_path);
-      if (file.open(QIODevice::ReadOnly)) {
-        _content = QString::fromUtf8(file.readAll());
+      if (!_path.isEmpty()) {
+        QFile file(_path);
+        if (file.open(QIODevice::ReadOnly)) {
+          _content = QString::fromUtf8(file.readAll());
+        } else {
+          _content = QString(); // Mark as read.
+        }
+        file.close();
       } else {
         _content = QString(); // Mark as read.
       }
-      file.close();
     }
     return _content.value();
   }
@@ -165,9 +168,20 @@ struct UpdateJSON {
 
   bool isValid() const {
     const auto validVersionNumber = !version.isNull();
+    if (!validVersionNumber)
+      return false;
+
     const auto validInstallerUrl = installerUrl.isEmpty() || installerUrl.isValid();
+    if (!validInstallerUrl)
+      return false;
+
     const auto validChangelogUrl = changelogUrl.isEmpty() || changelogUrl.isValid();
+    if (!validChangelogUrl)
+      return false;
+
     const auto validDate = date.isValid();
+    if (!validDate)
+      return false;
 
     auto validChecksum = true;
     if (checksumType != QtDownloader::ChecksumType::NoChecksum) {
@@ -185,7 +199,10 @@ struct UpdateJSON {
 
       validChecksum = !checksum.isEmpty() && checksum.size() == 2 * QCryptographicHash::hashLength(qtAlgorithm);
     }
-    return validVersionNumber && validInstallerUrl && validChangelogUrl && validDate && validChecksum;
+    if (!validChecksum)
+      return false;
+
+    return true;
   }
 
   QByteArray toJSON() const {
@@ -206,20 +223,19 @@ struct UpdateJSON {
     return QJsonDocument(jsonObject).toJson(QJsonDocument::JsonFormat::Compact);
   }
 
-  bool saveToFile(const QString& dirPath, QString& savePath) const {
+  std::tuple<bool, QString> saveToFile(const QString& dirPath) const {
     if (!isValid()) {
-      return false;
+      return { false, {} };
     }
 
     const auto filename = QFileInfo(installerUrl.fileName()).completeBaseName();
     const auto filePath = dirPath + '/' + filename + ".json";
-    savePath = filePath;
     QFile file(filePath);
 
     // Remove existing JSON file, if one.
     if (file.exists()) {
       if (!file.remove()) {
-        return false;
+        return { false, {} };
       }
     }
 
@@ -227,24 +243,24 @@ struct UpdateJSON {
     QDir const dir(dirPath);
     if (!dir.exists()) {
       if (!dir.mkpath(".")) {
-        return false;
+        return { false, {} };
       }
     }
 
     // Write file.
     if (!file.open(QIODevice::WriteOnly)) {
-      return false;
+      return { false, {} };
     }
 
     const auto data = toJSON();
     if (data.isEmpty()) {
-      return false;
+      return { false, {} };
     }
 
     file.write(data);
     file.close();
 
-    return true;
+    return { true, filePath };
   }
 };
 
@@ -290,9 +306,9 @@ struct QtUpdater::Impl {
   UpdateInfo onlineUpdateInfo;
   Frequency frequency{ Frequency::EveryDay };
   QDateTime lastCheckTime;
+  int checkTimeout{ QtDownloader::DefaultTimeout };
   QTimer timer;
-  QString downloadsDir;
-  LazyFileContent currentChangelog{ QCoreApplication::applicationDirPath() + '/' + CURRENT_CHANGELOG_FILEPATH };
+  QString downloadsDir{ utils::getDefaultTemporaryDirectoryPath() };
   QString currentVersion{ QCoreApplication::applicationVersion() };
 
   Impl(QtUpdater& o)
@@ -317,8 +333,6 @@ struct QtUpdater::Impl {
     if (frequency == Frequency::EveryHour) {
       timer.start();
     }
-
-    downloadsDir = utils::getTemporaryDirectoryPath() + TEMP_DIRECTORY;
   }
 
   void setState(State const value) {
@@ -453,17 +467,17 @@ struct QtUpdater::Impl {
     return UpdateInfo{ localJSON, localInstaller, localChangelog };
   }
 
-  void onCheckForUpdateFinished(const QByteArray& data) {
-    const auto notifyUpdateAvailable = [this](const bool newUpdateAvailable) {
-      // Signals for GUI.
-      setState(State::Idle);
-      emit owner.checkForUpdateFinished();
-      if (newUpdateAvailable) {
-        emit owner.latestVersionChanged();
-      }
-      emit owner.updateAvailableChanged();
-    };
+  void notifyUpdateAvailable(const bool newUpdateAvailable) {
+    // Signals for GUI.
+    setState(State::Idle);
+    emit owner.checkForUpdateFinished();
+    if (newUpdateAvailable) {
+      emit owner.latestVersionChanged();
+    }
+    emit owner.updateAvailableChanged();
+  };
 
+  void onCheckForUpdateFinished(const QByteArray& data) {
     // Save online info.
     const auto downloadedJSON = UpdateJSON{ data };
     onlineUpdateInfo = UpdateInfo{ downloadedJSON };
@@ -493,8 +507,8 @@ struct QtUpdater::Impl {
       utils::clearDirectoryContent(downloadsDir);
 
       // Write downloaded JSON to disk.
-      QString saveJSONFilePath;
-      if (!update->json.saveToFile(downloadsDir, saveJSONFilePath)) {
+      const auto [success, saveJSONFilePath] = update->json.saveToFile(downloadsDir);
+      if (!success) {
         emit owner.checkForUpdateFailed();
         notifyUpdateAvailable(false);
         return;
@@ -567,6 +581,16 @@ QtUpdater::~QtUpdater() {}
 #pragma endregion
 
 #pragma region Properties
+const QString& QtUpdater::temporaryDirectoryPath() const {
+  return _impl->downloadsDir;
+}
+
+void QtUpdater::setTemporaryDirectoryPath(const QString& path) {
+  if (path != _impl->downloadsDir) {
+    _impl->downloadsDir = path;
+    emit temporaryDirectoryPathChanged();
+  }
+}
 
 bool QtUpdater::updateAvailable() const {
   return _impl->updateAvailable();
@@ -621,10 +645,6 @@ QString QtUpdater::latestVersion() const {
   }
 }
 
-const QString& QtUpdater::currentChangelog() const {
-  return _impl->currentChangelog.getContent();
-}
-
 const QString& QtUpdater::latestChangelog() const {
   static const QString fallback;
   if (const auto update = const_cast<UpdateInfo*>(_impl->mostRecentUpdate())) {
@@ -656,6 +676,12 @@ void QtUpdater::setFrequency(Frequency frequency) {
 QDateTime QtUpdater::lastCheckTime() const {
   return _impl->lastCheckTime;
 }
+
+int QtUpdater::checkTimeout() const {
+  return _impl->checkTimeout;
+}
+
+void QtUpdater::setCheckTimeout(int timeout) {}
 
 #pragma endregion
 
@@ -728,6 +754,7 @@ void QtUpdater::downloadChangelog() {
 #endif
 
   if (!url.isValid()) {
+    _impl->setState(State::Idle);
     emit changelogDownloadFailed();
     return;
   }
@@ -738,6 +765,7 @@ void QtUpdater::downloadChangelog() {
       if (errorCode == QtDownloader::ErrorCode::NoError) {
         _impl->onDownloadChangelogFinished(filePath);
       } else {
+        _impl->setState(State::Idle);
         emit changelogDownloadFailed();
       }
     },
@@ -791,7 +819,8 @@ void QtUpdater::downloadInstaller() {
     });
 }
 
-void QtUpdater::installUpdate(bool const dry) {
+void QtUpdater::installUpdate(
+  const InstallMode mode, const QString& moveDestinationDir, const bool quitAfter, const bool dry) {
   const auto raiseError = [this](const char* msg = nullptr) {
     Q_UNUSED(msg);
 #if UPDATER_ENABLE_DEBUG
@@ -844,32 +873,50 @@ void QtUpdater::installUpdate(bool const dry) {
   }
 
   // Start installer in a separate process.
+  if (mode == InstallMode::ExecuteFile) {
 #if UPDATER_ENABLE_DEBUG
-  qCDebug(CATEGORY_UPDATER) << "Starting installer...";
+    qCDebug(CATEGORY_UPDATER) << "Starting installer...";
 #endif
-  auto installerProcessSuccess = false;
+    auto installerProcessSuccess = false;
 #if defined(Q_OS_WIN)
-  installerProcessSuccess = QProcess::startDetached(update->installer.absoluteFilePath(), {});
+    installerProcessSuccess = QProcess::startDetached(update->installer.absoluteFilePath(), {});
 #elif defined(Q_OS_MAC)
-  installerProcessSuccess = QProcess::startDetached("open", { update->installer.absoluteFilePath() });
+    installerProcessSuccess = QProcess::startDetached("open", { update->installer.absoluteFilePath() });
 #else
-  raiseError("OS not supported");
+    raiseError("OS not supported");
 #endif
-  if (!installerProcessSuccess) {
-    raiseError("Failed to start uninstaller");
-    _impl->setState(State::Idle);
-    return;
+    if (!installerProcessSuccess) {
+      raiseError("Failed to start uninstaller");
+      _impl->setState(State::Idle);
+      return;
+    }
+#if UPDATER_ENABLE_DEBUG
+    qCDebug(CATEGORY_UPDATER) << "Installer started";
+#endif
+
+    // Quit the app.
+    if (quitAfter) {
+#if UPDATER_ENABLE_DEBUG
+      qCDebug(CATEGORY_UPDATER) << "App will quit to let the installer do the update";
+#endif
+      QCoreApplication::quit();
+    }
+  } else if (mode == InstallMode::MoveFile && !moveDestinationDir.isEmpty()) {
+#if UPDATER_ENABLE_DEBUG
+    qCDebug(CATEGORY_UPDATER) << "Moving file...";
+#endif
+    const auto installerPath = update->installer.absoluteFilePath();
+    const auto fileName = update->installer.fileName();
+    const auto movedInstallerPath = moveDestinationDir + '/' + fileName;
+    if (!QFile::copy(installerPath, movedInstallerPath)) {
+      raiseError("Can't copy file to new destination");
+    }
+    if (!QFile::remove(installerPath)) {
+      raiseError("Can't remove temporary file");
+    }
   }
-#if UPDATER_ENABLE_DEBUG
-  qCDebug(CATEGORY_UPDATER) << "Installer started";
-#endif
 
-  // Quit the app.
-#if UPDATER_ENABLE_DEBUG
-  qCDebug(CATEGORY_UPDATER) << "App will quit to let the installer do the update";
-#endif
-  QCoreApplication::quit();
-
+  _impl->setState(State::Idle);
   emit installationFinished();
 }
 

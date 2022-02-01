@@ -18,13 +18,12 @@ constexpr auto SERVER_PORT = 8080;
 constexpr auto SERVER_HOST = "0.0.0.0";
 constexpr auto SERVER_URL = "localhost";
 
-constexpr auto APPCAST_QUERY_REGEX = R"(\/(win|mac)(\?version=latest)?)";
-constexpr auto INSTALLER_QUERY_REGEX = R"(\/(win|mac)\/installer-.+\.(exe|dmg)?)";
-constexpr auto CHANGELOG_QUERY_REGEX = R"(\/(win|mac)\/changelog-.+\.md?)";
+constexpr auto APPCAST_QUERY_REGEX = R"(\/)";
+constexpr auto INSTALLER_QUERY_REGEX = R"(\/installer-.+\.(exe|dmg)?)";
+constexpr auto CHANGELOG_QUERY_REGEX = R"(\/changelog-.+\.md?)";
 
 constexpr auto CONTENT_TYPE_JSON = "application/json";
 constexpr auto CONTENT_TYPE_EXE = "application/vnd.microsoft.portable-executable";
-constexpr auto CONTENT_TYPE_DMG = "application/application/vnd.apple.diskimage";
 constexpr auto CONTENT_TYPE_MD = "text/markdown";
 
 constexpr auto DUMMY_INSTALLER_DATA = "This is just dummy data to simulate an installer file";
@@ -41,16 +40,15 @@ constexpr auto DUMMY_CHANGELOG = R"(# Changelog
 )";
 
 constexpr auto APPCAST_TEMPLATE = R"({
-"version": "%1",
-"date": "01/01/2021",
-"checksum": "%2",
-"checksumType": "md5",
-"installerUrl": "%5/%3/installer-%1.0.%4",
-"changelogUrl": "%5/%3/changelog-%1.0.md"
+  "version": "%1",
+  "date": "%2",
+  "checksum": "%3",
+  "checksumType": "md5",
+  "installerUrl": "%4/installer-%1.0.exe",
+  "changelogUrl": "%4/changelog-%1.0.md"
 })";
 
-static const QString SERVER_URL_FOR_CLIENT =
-  "http://" + QString(SERVER_URL) + ':' + QString::number(SERVER_PORT) + "/win?version=latest";
+static const QString SERVER_URL_FOR_CLIENT = "http://" + QString(SERVER_URL) + ':' + QString::number(SERVER_PORT);
 
 QString getInstallerChecksum(const char* data) {
   QByteArray installerData(data);
@@ -62,9 +60,8 @@ QString getInstallerChecksum(const char* data) {
 
 QString getAppCast(const QString& version) {
   static const auto checksum = getInstallerChecksum(DUMMY_INSTALLER_DATA);
-  static const QString platform = "win";
-  static const QString extension = "exe";
-  return QString(APPCAST_TEMPLATE).arg(version).arg(checksum).arg(platform).arg(extension).arg(SERVER_URL_FOR_CLIENT);
+  const auto todayDate = QDate::currentDate().toString("dd/MM/yyyy");
+  return QString(APPCAST_TEMPLATE).arg(version).arg(todayDate).arg(checksum).arg(SERVER_URL_FOR_CLIENT);
 }
 } // namespace
 
@@ -105,8 +102,12 @@ void Tests::test_invalidServerUrl() {
   updater.checkForUpdate();
 
   // Wait for timeout.
-  while (!done) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&done]() {
+          return done;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
 
   QVERIFY(failed);
@@ -132,8 +133,12 @@ void Tests::test_validServerUrlButNoServer() {
   updater.checkForUpdate();
 
   // Wait for the client to receive the response from the server.
-  while (!done) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&done]() {
+          return done;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
 
   QVERIFY(error);
@@ -174,8 +179,12 @@ void Tests::test_validAppcastUrl() {
   updater.checkForUpdate();
 
   // Wait for the client to receive the response from the server.
-  while (!done) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&done]() {
+          return done;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
   server.stop();
   t.join();
@@ -217,8 +226,12 @@ void Tests::test_validAppcastUrlButNoServer() {
   updater.checkForUpdate();
 
   // Wait for the timeout.
-  while (!done) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&done]() {
+          return done;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
 
   QVERIFY(error);
@@ -277,8 +290,12 @@ void Tests::test_validAppcastUrlButNoUpdate() {
   updater.checkForUpdate();
 
   // Wait for the client to receive the response from the server.
-  while (!done) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&done]() {
+          return done;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
   server.stop();
   t.join();
@@ -327,8 +344,12 @@ void Tests::test_validChangelogUrl() {
     checked = true;
   });
   updater.checkForUpdate();
-  while (!checked) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&checked]() {
+          return checked;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
 
   if (!updater.updateAvailable()) {
@@ -347,8 +368,12 @@ void Tests::test_validChangelogUrl() {
     downloadedChangelog = true;
   });
   updater.downloadChangelog();
-  while (!downloadedChangelog) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&downloadedChangelog]() {
+          return downloadedChangelog;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
   server.stop();
   t.join();
@@ -390,8 +415,12 @@ void Tests::test_invalidChangelogUrl() {
     checked = true;
   });
   updater.checkForUpdate();
-  while (!checked) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&checked]() {
+          return checked;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
 
   if (!updater.updateAvailable()) {
@@ -410,8 +439,12 @@ void Tests::test_invalidChangelogUrl() {
     downloadedChangelog = true;
   });
   updater.downloadChangelog();
-  while (!downloadedChangelog) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&downloadedChangelog]() {
+          return downloadedChangelog;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
   server.stop();
   t.join();
@@ -454,8 +487,12 @@ void Tests::test_validInstallerUrl() {
     checked = true;
   });
   updater.checkForUpdate();
-  while (!checked) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&checked]() {
+          return checked;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
 
   if (!updater.updateAvailable()) {
@@ -474,8 +511,12 @@ void Tests::test_validInstallerUrl() {
     downloadFinished = true;
   });
   updater.downloadInstaller();
-  while (!downloadFinished) {
-    QCoreApplication::processEvents();
+  if (!QTest::qWaitFor(
+        [&downloadFinished]() {
+          return downloadFinished;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
   }
   server.stop();
   t.join();
@@ -498,7 +539,7 @@ void Tests::test_validInstallerUrl() {
     installationFailed = true;
     installationFinished = true;
   });
-  updater.installUpdate(true);
+  updater.installUpdate(QtUpdater::InstallMode::ExecuteFile, {}, true, /*dry*/ true);
   QVERIFY(installationFinished);
   QVERIFY(!installationFailed);
 }
@@ -570,7 +611,7 @@ void Tests::test_invalidInstallerUrl() {
   QObject::connect(&updater, &QtUpdater::installationFinished, this, [&installationFinished]() {
     installationFinished = true;
   });
-  updater.installUpdate(true);
+  updater.installUpdate(QtUpdater::InstallMode::ExecuteFile, {}, true, /*dry*/ true);
   QVERIFY(installationFinished);
   QVERIFY(installationFailed);
 }

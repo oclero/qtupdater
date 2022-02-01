@@ -69,7 +69,11 @@ Updater for Qt5 (auto-updates).
 
 The protocol is the following:
 
-1. The client sends a request to the endpoint URL of your choice.
+1. The client sends a request to the endpoint URL of your choice. Example (with curl):
+
+   ```bash
+   curl http://server/endpoint?version=latest
+   ```
 
 2. The server answers by sending back an _appcast_: a JSON file containing the necessary information. The _appcast_ must look like the following:
 
@@ -79,8 +83,8 @@ The protocol is the following:
      "date": "dd/MM/YYYY",
      "checksum": "418397de9ef332cd0e477ff5e8ca38d4",
      "checksumType": "md5",
-     "installerUrl": "http://your-server/your-app/win/YourApp-x.y.z.t-Windows-64bit.exe",
-     "changelogUrl": "http://your-server/your-app/win/YourApp-x.y.z.t--Windows-64bit.md"
+     "installerUrl": "http://server/endpoint/package-name.exe",
+     "changelogUrl": "http://server/endpoint/changelog-name.md"
    }
    ```
 
@@ -88,7 +92,9 @@ The protocol is the following:
 
 4. The client downloads the installer from `installerUrl`, if any provided.
 
-5. The client starts the installer and quits, if necessary.
+5. The client installs the installer:
+    - The client may start the installer and quit, if necessary.
+    - It may also move the downloaded file to some location.
 
 ## Example
 
@@ -101,30 +107,30 @@ A _very basic_ server written in Python is included as testing purposes. Don't u
 python examples/dev_server/main.py
 
 # ... Or set your own config.
-python examples/dev_server/main.py --dir ../your-directory --port 8000 --address 127.0.0.1
+python examples/dev_server/main.py --dir /some-directory --port 8000 --address 127.0.0.1
 ```
 
 Some examples of valid requests for this server:
 
 ```bash
 # The client must be able to retrieve the latest version.
-curl http://your-server/your-app/win?version=latest
+curl http://localhist:8000?version=latest
 
 # This is equivalent to getting the latest version.
-curl http://your-server/your-app/win
+curl http://localhist:8000
 
 # If the following version exist, the request is valid.
-curl http://your-server/your-app/win?version=1.2.3
+curl http://localhist:8000?version=1.2.3
 
 # If the file exist, the request is valid.
-curl http://your-server/your-app/win/YourApp-1.2.3-Windows-64bit.exe
+curl http://localhist:8000/v1.1.0.exe
 ```
 
 ### Client
 
 ```c++
 // Create an updater.
-oclero::QtUpdater updater("https://your-server/update-api/");
+oclero::QtUpdater updater("https://server/endpoint");
 
 // Subscribe to all necessary signals. See documentation for complete list.
 QObject::connect(&updater, &oclero::QtUpdater::updateAvailableChanged,
@@ -145,7 +151,7 @@ updater.checkForUpdate();
 
 ## Author
 
-**Olivier Cléro** | [email](mailto:oclero@pm.me) | [website](https://www.olivierclero.com) | [github](https://www.github.com/oclero)
+**Olivier Cléro** | [email](mailto:oclero@pm.me) | [website](https://www.olivierclero.com) | [github](https://www.github.com/oclero) | [gitlab](https://www.gitlab.com/oclero)
 
 ## License
 

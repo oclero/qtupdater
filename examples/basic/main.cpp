@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include <QDebug>
+#include <QStandardPaths>
 
 #include <oclero/QtUpdater.hpp>
 
@@ -10,6 +11,7 @@ int main(int argc, char* argv[]) {
   QCoreApplication app(argc, argv);
 
   oclero::QtUpdater updater;
+  updater.setServerUrl("http://localhost:8000/");
 
   QObject::connect(&updater, &oclero::QtUpdater::updateAvailableChanged, &updater, [&updater]() {
     if (updater.updateAvailable()) {
@@ -31,12 +33,13 @@ int main(int argc, char* argv[]) {
     }
   });
 
-  QObject::connect(&updater, &oclero::QtUpdater::changelogAvailableChanged, &updater, [&updater]() {
+  QObject::connect(&updater, &oclero::QtUpdater::installerAvailableChanged, &updater, [&updater]() {
     if (updater.installerAvailable()) {
       qDebug() << "Installer downloaded!";
 
-      qDebug() << "Starting installer...";
-      updater.installUpdate(/* dry */ true);
+      qDebug() << "Starting installation...";
+      const auto dest = QString{ QStandardPaths::standardLocations(QStandardPaths::DownloadLocation).first() };
+      updater.installUpdate(oclero::QtUpdater::InstallMode::MoveFile, dest, /* quitAfter */ false, /* dry */ false);
     }
   });
 
