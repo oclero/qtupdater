@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QDir>
 #include <QCryptographicHash>
+#include <QPointer>
 
 #include <optional>
 
@@ -23,6 +24,8 @@ struct QtDownloader::Impl {
   QFileInfo fileInfo;
   QScopedPointer<QFile> fileStream{ nullptr };
   bool isDownloading{ false };
+  bool cancelled{ false };
+  QPointer<QNetworkReply> reply{ nullptr };
   QMetaObject::Connection progressConnection;
   QMetaObject::Connection readyReadConnection;
   QMetaObject::Connection finishedConnection;
@@ -100,7 +103,7 @@ struct QtDownloader::Impl {
 
     auto request = QNetworkRequest(url);
     request.setTransferTimeout(timeout);
-    auto reply = manager.get(request);
+    reply = manager.get(request);
     if (onProgress) {
       onProgress(0);
       progressConnection = QObject::connect(
@@ -109,13 +112,13 @@ struct QtDownloader::Impl {
         });
     }
 
-    readyReadConnection = QObject::connect(reply, &QNetworkReply::readyRead, &owner, [this, reply]() {
+    readyReadConnection = QObject::connect(reply, &QNetworkReply::readyRead, &owner, [this]() {
       if (reply->bytesAvailable()) {
         fileStream->write(reply->readAll());
       }
     });
 
-    finishedConnection = QObject::connect(reply, &QNetworkReply::finished, &owner, [this, reply]() {
+    finishedConnection = QObject::connect(reply, &QNetworkReply::finished, &owner, [this]() {
       if (onProgress) {
         onProgress(100);
       }
@@ -123,7 +126,7 @@ struct QtDownloader::Impl {
       QObject::disconnect(progressConnection);
       QObject::disconnect(readyReadConnection);
       QObject::disconnect(finishedConnection);
-      const auto errorCode = handleFileReply(reply);
+      const auto errorCode = handleFileReply(reply, cancelled);
       onFileDownloadFinished(errorCode);
     });
   }
@@ -139,7 +142,7 @@ struct QtDownloader::Impl {
 
     auto request = QNetworkRequest(url);
     request.setTransferTimeout(timeout);
-    auto reply = manager.get(request);
+    reply = manager.get(request);
 
     const auto error = reply->error();
     if (error != QNetworkReply::NoError) {
@@ -155,13 +158,13 @@ struct QtDownloader::Impl {
         });
     }
 
-    readyReadConnection = QObject::connect(reply, &QNetworkReply::readyRead, &owner, [this, reply]() {
+    readyReadConnection = QObject::connect(reply, &QNetworkReply::readyRead, &owner, [this]() {
       if (reply->bytesAvailable()) {
         downloadedData.append(reply->readAll());
       }
     });
 
-    finishedConnection = QObject::connect(reply, &QNetworkReply::finished, &owner, [this, reply]() {
+    finishedConnection = QObject::connect(reply, &QNetworkReply::finished, &owner, [this]() {
       if (onProgress) {
         onProgress(100);
       }
@@ -169,13 +172,14 @@ struct QtDownloader::Impl {
       QObject::disconnect(progressConnection);
       QObject::disconnect(readyReadConnection);
       QObject::disconnect(finishedConnection);
-      const auto errorCode = handleDataReply(reply);
+      const auto errorCode = handleDataReply(reply, cancelled);
       onDataDownloadFinished(errorCode);
     });
   }
 
   void onFileDownloadFinished(ErrorCode const errorCode) {
     isDownloading = false;
+    cancelled = false;
     if (onFileFinished) {
       downloadedFilepath = errorCode != ErrorCode::NoError ? QString{} : fileInfo.absoluteFilePath();
       onFileFinished(errorCode, downloadedFilepath);
@@ -184,6 +188,7 @@ struct QtDownloader::Impl {
 
   void onDataDownloadFinished(ErrorCode const errorCode) {
     isDownloading = false;
+    cancelled = false;
     if (onDataFinished) {
       onDataFinished(errorCode, downloadedData);
     }
@@ -201,9 +206,12 @@ struct QtDownloader::Impl {
     }
   }
 
-  ErrorCode handleFileReply(QNetworkReply* reply) {
+  ErrorCode handleFileReply(QNetworkReply* reply, bool cancelled) {
     assert(reply);
     assert(fileStream.get());
+
+    if (!reply)
+      return ErrorCode::NetworkError;
 
     DeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
 
@@ -214,6 +222,12 @@ struct QtDownloader::Impl {
       }
       fileStream.reset(nullptr);
     };
+
+    // Cancelled by user.
+    if (cancelled) {
+      closeFilestream(true);
+      return ErrorCode::Cancelled;
+    }
 
     // Network error.
     if (reply->error() != QNetworkReply::NoError) {
@@ -246,12 +260,19 @@ struct QtDownloader::Impl {
     return ErrorCode::NoError;
   }
 
-  ErrorCode handleDataReply(QNetworkReply* reply) {
+  ErrorCode handleDataReply(QNetworkReply* reply, bool cancelled) {
     assert(reply);
+
+    if (!reply)
+      return ErrorCode::NetworkError;
 
     DeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
 
-    isDownloading = false;
+    // Cancelled by user.
+    if (cancelled) {
+      return ErrorCode::Cancelled;
+    }
+
     return reply->error() != QNetworkReply::NoError ? ErrorCode::NetworkError : ErrorCode::NoError;
   }
 
@@ -292,6 +313,8 @@ void QtDownloader::downloadFile(const QUrl& url, const QString& localDir, const 
   _impl->onDataFinished = nullptr;
   _impl->onProgress = onProgress;
   _impl->timeout = timeout;
+  _impl->reply.clear();
+  _impl->cancelled = false;
 
   _impl->startFileDownload();
 }
@@ -311,8 +334,26 @@ void QtDownloader::downloadData(
   _impl->onDataFinished = onFinished;
   _impl->onProgress = onProgress;
   _impl->timeout = timeout;
+  _impl->reply.clear();
+  _impl->cancelled = false;
 
   _impl->startDataDownload();
+}
+
+
+void QtDownloader::cancel() {
+  if (isDownloading()) {
+    _impl->cancelled = true;
+
+    if (_impl->reply) {
+      // Finished signal will be emitted, and the reply will be deleted at this moment.
+      _impl->reply->abort();
+    }
+  }
+}
+
+bool QtDownloader::isDownloading() const {
+  return _impl->isDownloading;
 }
 
 bool QtDownloader::verifyFileChecksum(const QString& filePath, const QString& checksumStr,

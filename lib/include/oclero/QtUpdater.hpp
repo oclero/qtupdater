@@ -58,7 +58,7 @@ public:
 
   enum class InstallMode {
     ExecuteFile,
-    MoveFile,
+    MoveFileToDir,
   };
   Q_ENUM(InstallMode)
 
@@ -93,6 +93,7 @@ public slots:
   void installUpdate(InstallMode const mode, const QString& moveDestinationDir = {}, const bool quitAfter = true,
     const bool dry = false);
   void setCheckTimeout(int timeout);
+  void cancel();
 
 signals:
   void temporaryDirectoryPathChanged();

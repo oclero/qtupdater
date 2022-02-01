@@ -683,6 +683,14 @@ int QtUpdater::checkTimeout() const {
 
 void QtUpdater::setCheckTimeout(int timeout) {}
 
+void QtUpdater::cancel() {
+  const auto currentState = state();
+  if (currentState == State::Idle || currentState == State::InstallingUpdate)
+    return;
+
+  _impl->downloader.cancel();
+}
+
 #pragma endregion
 
 #pragma region Public slots
@@ -901,7 +909,7 @@ void QtUpdater::installUpdate(
 #endif
       QCoreApplication::quit();
     }
-  } else if (mode == InstallMode::MoveFile && !moveDestinationDir.isEmpty()) {
+  } else if (mode == InstallMode::MoveFileToDir && !moveDestinationDir.isEmpty()) {
 #if UPDATER_ENABLE_DEBUG
     qCDebug(CATEGORY_UPDATER) << "Moving file...";
 #endif

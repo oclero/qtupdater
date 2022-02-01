@@ -28,6 +28,7 @@ public:
     FileDoesNotExistOrIsCorrupted,
     FileDoesNotEndWithSuffix,
     CannotRenameFile,
+    Cancelled,
   };
   Q_ENUM(ErrorCode)
 
@@ -59,6 +60,10 @@ public:
 
   void downloadData(const QUrl& url, const DataFinishedCallback&& onFinished,
     const ProgressCallback&& onProgress = nullptr, const int timeout = DefaultTimeout);
+
+  void cancel();
+
+  bool isDownloading() const;
 
   static bool verifyFileChecksum(const QString& filePath, const QString& checksum, ChecksumType const checksumType,
     InvalidChecksumBehavior const behavior = InvalidChecksumBehavior::RemoveFile);
