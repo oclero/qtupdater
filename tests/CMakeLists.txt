@@ -43,8 +43,8 @@ if(NOT ${CPP_HTTPLIB_INCLUDE_DIRS} STREQUAL "CPP_HTTPLIB_INCLUDE_DIRS-NOTFOUND")
     WORKING_DIRECTORY $<TARGET_FILE_DIR:${TESTS_TARGET_NAME}>)
 
   source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${TESTS_SOURCES})
+
+  target_deploy_qt(${TESTS_TARGET_NAME})
 else()
   message("-- Can't find httplib. Tests will be ignored.")
 endif()
-
-target_deploy_qt(${TESTS_TARGET_NAME})
