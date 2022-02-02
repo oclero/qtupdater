@@ -110,18 +110,21 @@ signals:
   void checkForUpdateFinished();
   void checkForUpdateOnlineFailed();
   void checkForUpdateFailed();
+  void checkForUpdateCancelled();
   void updateAvailableChanged();
 
   void changelogDownloadStarted();
   void changelogDownloadProgressChanged(int percentage);
   void changelogDownloadFinished();
   void changelogDownloadFailed();
+  void changelogDownloadCancelled();
   void changelogAvailableChanged();
 
   void installerDownloadStarted();
   void installerDownloadProgressChanged(int percentage);
   void installerDownloadFinished();
   void installerDownloadFailed();
+  void installerDownloadCancelled();
   void installerAvailableChanged();
 
   void installationStarted();

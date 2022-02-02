@@ -477,7 +477,15 @@ struct QtUpdater::Impl {
     emit owner.updateAvailableChanged();
   };
 
-  void onCheckForUpdateFinished(const QByteArray& data) {
+  void onCheckForUpdateFinished(const QByteArray& data, bool cancelled) {
+    if (cancelled) {
+      onlineUpdateInfo = {};
+      localUpdateInfo = {};
+      emit owner.checkForUpdateCancelled();
+      notifyUpdateAvailable(false);
+      return;
+    }
+
     // Save online info.
     const auto downloadedJSON = UpdateJSON{ data };
     onlineUpdateInfo = UpdateInfo{ downloadedJSON };
@@ -733,7 +741,8 @@ void QtUpdater::forceCheckForUpdate() {
       if (errorCode != QtDownloader::ErrorCode::NoError) {
         emit checkForUpdateOnlineFailed();
       }
-      _impl->onCheckForUpdateFinished(data);
+      const auto cancelled = errorCode == QtDownloader::ErrorCode::Cancelled;
+      _impl->onCheckForUpdateFinished(data, cancelled);
     },
     [this](int const percentage) {
       emit checkForUpdateProgressChanged(percentage);
@@ -772,6 +781,9 @@ void QtUpdater::downloadChangelog() {
     [this](QtDownloader::ErrorCode const errorCode, const QString& filePath) {
       if (errorCode == QtDownloader::ErrorCode::NoError) {
         _impl->onDownloadChangelogFinished(filePath);
+      } else if (errorCode == QtDownloader::ErrorCode::Cancelled) {
+        _impl->setState(State::Idle);
+        emit changelogDownloadCancelled();
       } else {
         _impl->setState(State::Idle);
         emit changelogDownloadFailed();
@@ -806,6 +818,7 @@ void QtUpdater::downloadInstaller() {
 #endif
 
   if (!url.isValid()) {
+    _impl->setState(State::Idle);
     emit installerDownloadFailed();
     return;
   }
@@ -815,7 +828,11 @@ void QtUpdater::downloadInstaller() {
     [this](QtDownloader::ErrorCode const errorCode, const QString& filePath) {
       if (errorCode == QtDownloader::ErrorCode::NoError) {
         _impl->onDownloadInstallerFinished(filePath);
+      } else if (errorCode == QtDownloader::ErrorCode::Cancelled) {
+        _impl->setState(State::Idle);
+        emit installerDownloadCancelled();
       } else {
+        _impl->setState(State::Idle);
         emit installerDownloadFailed();
       }
     },
