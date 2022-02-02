@@ -615,3 +615,48 @@ void Tests::test_invalidInstallerUrl() {
   QVERIFY(installationFinished);
   QVERIFY(installationFailed);
 }
+
+void Tests::test_cancel() {
+  // Server.
+  httplib::Server server;
+  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+    // Sleep to let some time to cancel the download.
+    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+    const auto appCast = getAppCast(LATEST_VERSION);
+    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
+  });
+
+  // Start server in a thread.
+  auto t = std::thread([&server]() {
+    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
+      server.stop();
+      QFAIL("Can't start server");
+    }
+  });
+
+  // Configure updater.
+  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  updater.setFrequency(QtUpdater::Frequency::Never);
+
+  // Check for updates.
+  auto checked = false;
+  auto cancelled = false;
+  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
+    checked = true;
+  });
+  QObject::connect(&updater, &QtUpdater::checkForUpdateCancelled, this, [&cancelled]() {
+    cancelled = true;
+  });
+  updater.checkForUpdate();
+  updater.cancel();
+
+  if (!QTest::qWaitFor(
+        [&checked]() {
+          return checked;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
+  }
+
+  QVERIFY(cancelled);
+}

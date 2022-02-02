@@ -21,4 +21,6 @@ private slots:
 
   void test_validInstallerUrl();
   void test_invalidInstallerUrl();
+
+  void test_cancel();
 };
