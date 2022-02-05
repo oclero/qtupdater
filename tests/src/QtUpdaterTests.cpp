@@ -657,6 +657,8 @@ void Tests::test_cancel() {
         updater.checkTimeout())) {
     QFAIL("Too late.");
   }
+  server.stop();
+  t.join();
 
   QVERIFY(cancelled);
 }
