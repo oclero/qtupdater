@@ -1,6 +1,6 @@
 #include <oclero/QtDownloader.hpp>
 
-#include "utils/DeleteLaterScopedPointer.hpp"
+#include <oclero/QtPointerUtils.hpp>
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -213,7 +213,7 @@ struct QtDownloader::Impl {
     if (!reply)
       return ErrorCode::NetworkError;
 
-    DeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
+    QtDeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
 
     const auto closeFilestream = [this, reply](bool const removeFile) {
       isDownloading = false;
@@ -266,7 +266,7 @@ struct QtDownloader::Impl {
     if (!reply)
       return ErrorCode::NetworkError;
 
-    DeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
+    QtDeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
 
     // Cancelled by user.
     if (cancelled) {

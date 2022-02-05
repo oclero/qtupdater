@@ -12,10 +12,6 @@ set(HEADERS
 )
 
 set(SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/DeleteLaterScopedPointer.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/EnumUtils.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/SettingsUtils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/utils/SettingsUtils.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtUpdater.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtDownloader.cpp
 )
@@ -41,6 +37,7 @@ target_link_libraries(${LIB_TARGET_NAME}
   PRIVATE
     Qt5::Core
     Qt5::Network
+    oclero::QtUtils
 )
 
 set_target_properties(${LIB_TARGET_NAME}

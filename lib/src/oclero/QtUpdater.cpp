@@ -2,8 +2,8 @@
 
 #include <oclero/QtDownloader.hpp>
 
-#include "utils/EnumUtils.hpp"
-#include "utils/SettingsUtils.hpp"
+#include <oclero/QtEnumUtils.hpp>
+#include <oclero/QtSettingsUtils.hpp>
 
 #include <QLoggingCategory>
 #include <QFile>

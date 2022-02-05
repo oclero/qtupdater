@@ -18,6 +18,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # The library.
+add_subdirectory(submodules/qtutils)
 add_subdirectory(lib)
 
 if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})

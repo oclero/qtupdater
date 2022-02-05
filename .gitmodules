@@ -1,0 +1,3 @@
+[submodule "submodules/qtutils"]
+	path = submodules/qtutils
+	url = https://github.com/oclero/qtutils.git
