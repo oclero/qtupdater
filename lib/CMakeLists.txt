@@ -37,6 +37,7 @@ target_link_libraries(${LIB_TARGET_NAME}
   PRIVATE
     Qt5::Core
     Qt5::Network
+  PUBLIC
     oclero::QtUtils
 )
 
