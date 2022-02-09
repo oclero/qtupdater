@@ -114,16 +114,16 @@ Some examples of valid requests for this server:
 
 ```bash
 # The client must be able to retrieve the latest version.
-curl http://localhist:8000?version=latest
+curl http://localhost:8000?version=latest
 
 # This is equivalent to getting the latest version.
-curl http://localhist:8000
+curl http://localhost:8000
 
 # If the following version exist, the request is valid.
-curl http://localhist:8000?version=1.2.3
+curl http://localhost:8000?version=1.2.3
 
 # If the file exist, the request is valid.
-curl http://localhist:8000/v1.1.0.exe
+curl http://localhost:8000/v1.1.0.exe
 ```
 
 ### Client
