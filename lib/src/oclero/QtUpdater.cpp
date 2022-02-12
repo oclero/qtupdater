@@ -86,9 +86,6 @@ constexpr auto SETTINGS_KEY_LASTCHECKTIME = "Update/LastCheckTime";
 constexpr auto SETTINGS_KEY_FREQUENCY = "Update/CheckFrequency";
 constexpr auto SETTINGS_KEY_LASTUPDATEJSON = "Update/LastUpdateJSON";
 
-constexpr auto CURRENT_CHANGELOG_FILEPATH = "CHANGELOG.md";
-
-
 class LazyFileContent {
 public:
   LazyFileContent(const QString& path = {})
@@ -464,7 +461,7 @@ struct QtUpdater::Impl {
       return UpdateInfo{};
     }
 
-    return UpdateInfo{ localJSON, localInstaller, localChangelog };
+    return UpdateInfo{ localJSON, localInstaller, localChangelog, {} };
   }
 
   void notifyUpdateAvailable(const bool newUpdateAvailable) {
@@ -488,7 +485,7 @@ struct QtUpdater::Impl {
 
     // Save online info.
     const auto downloadedJSON = UpdateJSON{ data };
-    onlineUpdateInfo = UpdateInfo{ downloadedJSON };
+    onlineUpdateInfo = UpdateInfo{ downloadedJSON, {}, {}, {} };
 
     // Check for previously downloaded update, locally.
 #if UPDATER_ENABLE_DEBUG

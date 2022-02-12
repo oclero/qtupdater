@@ -27,7 +27,7 @@ class QtUpdater : public QObject {
       temporaryDirectoryPathChanged)
   Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateAvailableChanged)
   Q_PROPERTY(bool installerAvailable READ installerAvailable NOTIFY installerAvailableChanged)
-  Q_PROPERTY(QString currentVersion READ currentVersion)
+  Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
   Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY latestVersionChanged)
   Q_PROPERTY(QString latestChangelog READ latestChangelog NOTIFY latestChangelogChanged)
   Q_PROPERTY(State state READ state NOTIFY stateChanged)
@@ -84,7 +84,7 @@ public:
 public slots:
   void setTemporaryDirectoryPath(const QString& path);
   void setServerUrl(const QString& serverUrl);
-  void setFrequency(Frequency frequency);
+  void setFrequency(oclero::QtUpdater::Frequency frequency);
   void checkForUpdate();
   void forceCheckForUpdate();
   void downloadChangelog();
