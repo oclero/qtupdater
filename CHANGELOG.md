@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.6
+
+- Allow for custom QSettings parameters.
+
 ## v1.0.5
 
 - Fix some warnings.
