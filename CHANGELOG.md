@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.8
+
+- Fix ambiguous constructors
+
 ## v1.0.7
 
 - Update submodule QtUtils to v1.0.2
