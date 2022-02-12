@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.5
+
+- Fix some warnings.
+- Add support for timeout when making HTTP requests.
+
 ## v1.0.4
 
 - Set oclero::QtUtils library as PUBLIC in CMake.
