@@ -71,8 +71,8 @@ public:
 
 public:
   explicit QtUpdater(QObject* parent = nullptr);
-  QtUpdater(const SettingsParameters& settingsParameters = {}, QObject* parent = nullptr);
-  QtUpdater(const QString& serverUrl, const SettingsParameters& settingsParameters = {}, QObject* parent = nullptr);
+  QtUpdater(const QString& serverUrl, QObject* parent = nullptr);
+  QtUpdater(const QString& serverUrl, const SettingsParameters& settingsParameters, QObject* parent = nullptr);
   ~QtUpdater();
 
 public:

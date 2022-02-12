@@ -585,12 +585,15 @@ QtUpdater::QtUpdater(QObject* parent)
   : QObject(parent)
   , _impl(new Impl(*this)) {}
 
-QtUpdater::QtUpdater(const SettingsParameters& settingsParameters, QObject* parent)
+QtUpdater::QtUpdater(const QString& serverUrl, QObject* parent)
   : QObject(parent)
-  , _impl(new Impl(*this, settingsParameters)) {}
+  , _impl(new Impl(*this, SettingsParameters{})) {
+  setServerUrl(serverUrl);
+}
 
 QtUpdater::QtUpdater(const QString& serverUrl, const SettingsParameters& settingsParameters, QObject* parent)
-  : QtUpdater(settingsParameters, parent) {
+  : QObject(parent)
+  , _impl(new Impl(*this, settingsParameters)) {
   setServerUrl(serverUrl);
 }
 
