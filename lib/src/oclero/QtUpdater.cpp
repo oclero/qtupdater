@@ -686,7 +686,12 @@ int QtUpdater::checkTimeout() const {
   return _impl->checkTimeout;
 }
 
-void QtUpdater::setCheckTimeout(int timeout) {}
+void QtUpdater::setCheckTimeout(int timeout) {
+  if (timeout != _impl->checkTimeout) {
+    _impl->checkTimeout = timeout;
+    emit checkTimeoutChanged();
+  }
+}
 
 void QtUpdater::cancel() {
   const auto currentState = state();
@@ -743,7 +748,8 @@ void QtUpdater::forceCheckForUpdate() {
     },
     [this](int const percentage) {
       emit checkForUpdateProgressChanged(percentage);
-    });
+    },
+    _impl->checkTimeout);
 }
 
 void QtUpdater::downloadChangelog() {
@@ -788,7 +794,8 @@ void QtUpdater::downloadChangelog() {
     },
     [this](int const percentage) {
       emit changelogDownloadProgressChanged(percentage);
-    });
+    },
+    _impl->checkTimeout);
 }
 
 void QtUpdater::downloadInstaller() {
@@ -838,7 +845,8 @@ void QtUpdater::downloadInstaller() {
       qCDebug(CATEGORY_UPDATER) << "Downloading installer..." << percentage << "%";
 #endif
       emit installerDownloadProgressChanged(percentage);
-    });
+    },
+    _impl->checkTimeout);
 }
 
 void QtUpdater::installUpdate(
