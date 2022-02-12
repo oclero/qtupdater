@@ -3,21 +3,21 @@
 #include <QObject>
 #include <QString>
 #include <QDateTime>
+#include <QSettings>
 
 #include <memory>
 
 namespace oclero {
 /**
  * @brief Updater that checks for updates and download installer (Windows-only feature).
- * The server should handle responses for serverurl/{win|mac}[?version=latest]
  * The Updater expects a JSON response like this from the server.
  * {
  *   "version": "x.y.z",
  *   "date": "dd/MM/YYYY",
  *   "checksum": "418397de9ef332cd0e477ff5e8ca38d4",
  *   "checksumType": "md5",
- *   "installerUrl": "http://your-server/win/YourApp-x.y.z.t-Windows-64bit.exe",
- *   "changelogUrl": "http://your-server/win/YourApp-x.y.z.t--Windows-64bit.md"
+ *   "installerUrl": "http://server/endpoint/package-name.exe",
+ *   "changelogUrl": "http://server/endpoint/changelog-name.md"
  * }
  */
 class QtUpdater : public QObject {
@@ -62,9 +62,17 @@ public:
   };
   Q_ENUM(InstallMode)
 
+  struct SettingsParameters {
+    QSettings::Format format;
+    QSettings::Scope scope;
+    QString organization;
+    QString application;
+  };
+
 public:
   explicit QtUpdater(QObject* parent = nullptr);
-  QtUpdater(const QString& serverUrl, QObject* parent = nullptr);
+  QtUpdater(const SettingsParameters& settingsParameters = {}, QObject* parent = nullptr);
+  QtUpdater(const QString& serverUrl, const SettingsParameters& settingsParameters = {}, QObject* parent = nullptr);
   ~QtUpdater();
 
 public:

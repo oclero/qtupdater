@@ -19,6 +19,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # The library.
 add_subdirectory(submodules/qtutils)
+set_target_properties(QtUtils PROPERTIES FOLDER submodules)
 add_subdirectory(lib)
 
 if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
