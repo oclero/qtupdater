@@ -295,6 +295,7 @@ struct UpdateInfo {
 
 struct QtUpdater::Impl {
   QtUpdater& owner;
+  SettingsParameters settingsParameters;
   QString serverUrl;
   bool serverUrlInitialized{ false };
   State state{ State::Idle };
@@ -308,17 +309,20 @@ struct QtUpdater::Impl {
   QString downloadsDir{ utils::getDefaultTemporaryDirectoryPath() };
   QString currentVersion{ QCoreApplication::applicationVersion() };
 
-  Impl(QtUpdater& o)
-    : owner(o) {
+  Impl(QtUpdater& o, const SettingsParameters& p = {})
+    : owner(o)
+    , settingsParameters(p) {
     // Load settings.
-    const auto lastCheckTimeInSettings = loadSetting<QString>(SETTINGS_KEY_LASTCHECKTIME);
+    QSettings settings(settingsParameters.format, settingsParameters.scope, settingsParameters.organization,
+      settingsParameters.application);
+    const auto lastCheckTimeInSettings = loadSetting<QString>(settings, SETTINGS_KEY_LASTCHECKTIME);
     lastCheckTime = QDateTime::fromString(lastCheckTimeInSettings, Qt::DateFormat::ISODate);
 
-    const auto freq = tryLoadSetting<Frequency>(SETTINGS_KEY_FREQUENCY);
+    const auto freq = tryLoadSetting<Frequency>(settings, SETTINGS_KEY_FREQUENCY);
     if (freq) {
       frequency = freq.value();
     } else {
-      saveSetting(SETTINGS_KEY_FREQUENCY, frequency);
+      saveSetting(settings, SETTINGS_KEY_FREQUENCY, frequency);
     }
 
     // Setup timer, for hourly checking for updates.
@@ -406,7 +410,9 @@ struct QtUpdater::Impl {
 
   UpdateInfo checkForLocalUpdate() const {
     // Check presence of a JSON file.
-    const auto optFilePath = tryLoadSetting<QString>(SETTINGS_KEY_LASTUPDATEJSON);
+    QSettings settings(settingsParameters.format, settingsParameters.scope, settingsParameters.organization,
+      settingsParameters.application);
+    const auto optFilePath = tryLoadSetting<QString>(settings, SETTINGS_KEY_LASTUPDATEJSON);
 
     if (!optFilePath.has_value()) {
       return UpdateInfo{};
@@ -518,7 +524,10 @@ struct QtUpdater::Impl {
         notifyUpdateAvailable(false);
         return;
       }
-      saveSetting(SETTINGS_KEY_LASTUPDATEJSON, saveJSONFilePath);
+
+      QSettings settings(settingsParameters.format, settingsParameters.scope, settingsParameters.organization,
+        settingsParameters.application);
+      saveSetting(settings, SETTINGS_KEY_LASTUPDATEJSON, saveJSONFilePath);
     }
 
     // Compare version numbers.
@@ -576,8 +585,12 @@ QtUpdater::QtUpdater(QObject* parent)
   : QObject(parent)
   , _impl(new Impl(*this)) {}
 
-QtUpdater::QtUpdater(const QString& serverUrl, QObject* parent)
-  : QtUpdater(parent) {
+QtUpdater::QtUpdater(const SettingsParameters& settingsParameters, QObject* parent)
+  : QObject(parent)
+  , _impl(new Impl(*this, settingsParameters)) {}
+
+QtUpdater::QtUpdater(const QString& serverUrl, const SettingsParameters& settingsParameters, QObject* parent)
+  : QtUpdater(settingsParameters, parent) {
   setServerUrl(serverUrl);
 }
 
@@ -726,7 +739,9 @@ void QtUpdater::forceCheckForUpdate() {
 
   // Change last checked time.
   _impl->lastCheckTime = QDateTime::currentDateTime();
-  saveSetting(SETTINGS_KEY_LASTCHECKTIME, _impl->lastCheckTime.toString(Qt::DateFormat::ISODate));
+  QSettings settings(_impl->settingsParameters.format, _impl->settingsParameters.scope,
+    _impl->settingsParameters.organization, _impl->settingsParameters.application);
+  saveSetting(settings, SETTINGS_KEY_LASTCHECKTIME, _impl->lastCheckTime.toString(Qt::DateFormat::ISODate));
   emit lastCheckTimeChanged();
 
   // Start checking.

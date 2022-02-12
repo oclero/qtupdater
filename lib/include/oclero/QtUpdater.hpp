@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QDateTime>
+#include <QSettings>
 
 #include <memory>
 
@@ -61,9 +62,17 @@ public:
   };
   Q_ENUM(InstallMode)
 
+  struct SettingsParameters {
+    QSettings::Format format;
+    QSettings::Scope scope;
+    QString organization;
+    QString application;
+  };
+
 public:
   explicit QtUpdater(QObject* parent = nullptr);
-  QtUpdater(const QString& serverUrl, QObject* parent = nullptr);
+  QtUpdater(const SettingsParameters& settingsParameters = {}, QObject* parent = nullptr);
+  QtUpdater(const QString& serverUrl, const SettingsParameters& settingsParameters = {}, QObject* parent = nullptr);
   ~QtUpdater();
 
 public:
