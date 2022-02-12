@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.7
+
+- Update submodule QtUtils to v1.0.2
+
 ## v1.0.6
 
 - Allow for custom QSettings parameters.
