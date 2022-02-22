@@ -7,7 +7,7 @@ include(DeployQt)
 # Set project information.
 project("QtUpdater"
   LANGUAGES CXX
-  VERSION 1.0.9.0
+  VERSION 1.0.10.0
 )
 set(PROJECT_NAMESPACE "oclero")
 

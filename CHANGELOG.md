@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.10
+
+- Update submodule QtUtils to v1.0.4
+
 ## v1.0.9
 
 - Update submodule QtUtils to v1.0.3
