@@ -147,7 +147,7 @@ void Tests::test_validServerUrlButNoServer() {
 void Tests::test_validAppcastUrl() {
   // Server.
   httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     const auto appCast = getAppCast(LATEST_VERSION);
     response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
   });
@@ -246,7 +246,7 @@ void Tests::test_validAppcastUrlButNoServer() {
 void Tests::test_validAppcastUrlButNoUpdate() {
   // Server.
   httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     const auto appCast = getAppCast(CURRENT_VERSION);
     response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
   });
@@ -318,11 +318,11 @@ void Tests::test_validAppcastUrlButNoUpdate() {
 void Tests::test_validChangelogUrl() {
   // Server.
   httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     const auto appCast = getAppCast(LATEST_VERSION);
     response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
   });
-  server.Get(CHANGELOG_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(CHANGELOG_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     response.set_content(DUMMY_CHANGELOG, CONTENT_TYPE_MD);
   });
 
@@ -392,7 +392,7 @@ void Tests::test_validChangelogUrl() {
 void Tests::test_invalidChangelogUrl() {
   // Server.
   httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     const auto appCast = getAppCast(LATEST_VERSION);
     response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
   });
@@ -461,11 +461,11 @@ void Tests::test_invalidChangelogUrl() {
 void Tests::test_validInstallerUrl() {
   // Server.
   httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     const auto appCast = getAppCast(LATEST_VERSION);
     response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
   });
-  server.Get(INSTALLER_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(INSTALLER_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     response.set_content(DUMMY_INSTALLER_DATA, CONTENT_TYPE_EXE);
   });
 
@@ -547,7 +547,7 @@ void Tests::test_validInstallerUrl() {
 void Tests::test_invalidInstallerUrl() {
   // Server.
   httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     const auto appCast = getAppCast(LATEST_VERSION);
     response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
   });
@@ -619,7 +619,7 @@ void Tests::test_invalidInstallerUrl() {
 void Tests::test_cancel() {
   // Server.
   httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [&server](const httplib::Request& request, httplib::Response& response) {
+  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
     // Sleep to let some time to cancel the download.
     std::this_thread::sleep_for(std::chrono::milliseconds(10000));
     const auto appCast = getAppCast(LATEST_VERSION);

@@ -12,6 +12,7 @@
 #include <QPointer>
 
 #include <optional>
+#include <cmath>
 
 namespace oclero {
 static const QString PARTIAL_DOWNLOAD_SUFFIX = ".part";
