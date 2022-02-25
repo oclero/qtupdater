@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.11
+
+- Update submodule QtUtils to v1.0.5
+- Ensure the lib works on Linux.
+
 ## v1.0.10
 
 - Update submodule QtUtils to v1.0.4
