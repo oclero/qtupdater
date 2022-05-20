@@ -7,7 +7,7 @@ include(DeployQt)
 # Set project information.
 project("QtUpdater"
   LANGUAGES CXX
-  VERSION 1.0.12.0
+  VERSION 1.1.0.0
 )
 set(PROJECT_NAMESPACE "oclero")
 
@@ -28,4 +28,5 @@ if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
 
   # Examples.
   add_subdirectory(examples/basic)
+  add_subdirectory(examples/qtwidgets)
 endif()

@@ -16,6 +16,7 @@ Updater for Qt5 (auto-updates).
 ### Table of Contents
 
 - [Requirements](#requirements)
+- [Features](#features)
 - [Usage](#usage)
 - [Server Specifications](#server-specifications)
 - [Example](#example)
@@ -30,6 +31,23 @@ Updater for Qt5 (auto-updates).
 - [CMake 3.19+](https://cmake.org/download/)
 - [Qt 5.15+](https://www.qt.io/download-qt-installer)
 - [cpphttplib](https://github.com/yhirose/cpp-httplib) (Only for unit tests)
+
+## Features
+
+This library contains:
+
+- A core: `QtUpdater`
+- A controller: `QtUpdateController`, that may be use with QtWidgets or QtQuick/QML.
+- A widget: `QtUpdateWidget`, that may be used as a `QWidget` or inside a `QDialog`.
+
+It has these features:
+
+- Get latest update information.
+- Get changelog.
+- Get installer.
+- Execute installer.
+- Temporarly stores the update data in the `temp` folder.
+- Verify checksum after downloading and before executing installer.
 
 ## Usage
 
@@ -133,15 +151,17 @@ curl http://localhost:8000/v1.1.0.exe
 oclero::QtUpdater updater("https://server/endpoint");
 
 // Subscribe to all necessary signals. See documentation for complete list.
-QObject::connect(&updater, &oclero::QtUpdater::updateAvailableChanged,
+QObject::connect(&updater, &oclero::QtUpdater::updateAvailabilityChanged,
                  &updater, [&updater]() {
-  if (updater.updateAvailable()) {
+  if (updater.updateAvailability() == oclero::QtUpdater::UpdateAvailable::Available) {
     qDebug() << "Update available! You have: "
       << qPrintable(updater.currentVersion())
       << " - Latest is: "
       << qPrintable(updater.latestVersion());
-  } else {
+  } else if (updater.updateAvailability() == oclero::QtUpdater::UpdateAvailable::UpToDate) {
     qDebug() << "You have the latest version.";
+  } else {
+    qDebug() << "Error.";
   }
 });
 

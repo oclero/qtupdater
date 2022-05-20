@@ -25,10 +25,12 @@ class QtUpdater : public QObject {
 
   Q_PROPERTY(QString temporaryDirectoryPath READ temporaryDirectoryPath WRITE setTemporaryDirectoryPath NOTIFY
       temporaryDirectoryPathChanged)
-  Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateAvailableChanged)
+  Q_PROPERTY(UpdateAvailability updateAvailability READ updateAvailability NOTIFY updateAvailabilityChanged)
   Q_PROPERTY(bool installerAvailable READ installerAvailable NOTIFY installerAvailableChanged)
   Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
+  Q_PROPERTY(QDateTime currentVersionDate READ currentVersionDate CONSTANT)
   Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY latestVersionChanged)
+  Q_PROPERTY(QDateTime latestVersionDate READ latestVersionDate NOTIFY latestVersionDateChanged)
   Q_PROPERTY(QString latestChangelog READ latestChangelog NOTIFY latestChangelogChanged)
   Q_PROPERTY(State state READ state NOTIFY stateChanged)
   Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
@@ -44,6 +46,13 @@ public:
     InstallingUpdate,
   };
   Q_ENUM(State)
+
+  enum class UpdateAvailability {
+    Unknown,
+    UpToDate,
+    Available,
+  };
+  Q_ENUM(UpdateAvailability)
 
   enum class Frequency {
     Never,
@@ -69,6 +78,17 @@ public:
     QString application;
   };
 
+  enum class ErrorCode {
+    NoError,
+    UrlError,
+    NetworkError,
+    DiskError,
+    ChecksumError,
+    InstallerExecutionError,
+    UnknownError,
+  };
+  Q_ENUM(ErrorCode)
+
 public:
   explicit QtUpdater(QObject* parent = nullptr);
   QtUpdater(const QString& serverUrl, QObject* parent = nullptr);
@@ -77,11 +97,13 @@ public:
 
 public:
   const QString& temporaryDirectoryPath() const;
-  bool updateAvailable() const;
+  UpdateAvailability updateAvailability() const;
   bool changelogAvailable() const;
   bool installerAvailable() const;
   const QString& currentVersion() const;
+  const QDateTime& currentVersionDate() const;
   QString latestVersion() const;
+  QDateTime latestVersionDate() const;
   const QString& latestChangelog() const;
   State state() const;
   const QString& serverUrl() const;
@@ -106,6 +128,7 @@ public slots:
 signals:
   void temporaryDirectoryPathChanged();
   void latestVersionChanged();
+  void latestVersionDateChanged();
   void latestChangelogChanged();
   void stateChanged();
   void serverUrlChanged();
@@ -113,30 +136,31 @@ signals:
   void lastCheckTimeChanged();
   void checkTimeoutChanged();
 
+  void checkForUpdateForced();
   void checkForUpdateStarted();
   void checkForUpdateProgressChanged(int percentage);
   void checkForUpdateFinished();
   void checkForUpdateOnlineFailed();
-  void checkForUpdateFailed();
+  void checkForUpdateFailed(ErrorCode error);
   void checkForUpdateCancelled();
-  void updateAvailableChanged();
+  void updateAvailabilityChanged();
 
   void changelogDownloadStarted();
   void changelogDownloadProgressChanged(int percentage);
   void changelogDownloadFinished();
-  void changelogDownloadFailed();
+  void changelogDownloadFailed(ErrorCode error);
   void changelogDownloadCancelled();
   void changelogAvailableChanged();
 
   void installerDownloadStarted();
   void installerDownloadProgressChanged(int percentage);
   void installerDownloadFinished();
-  void installerDownloadFailed();
+  void installerDownloadFailed(ErrorCode error);
   void installerDownloadCancelled();
   void installerAvailableChanged();
 
   void installationStarted();
-  void installationFailed();
+  void installationFailed(ErrorCode error);
   // Emitted only when run in dry mode.
   void installationFinished();
 

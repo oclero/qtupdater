@@ -308,6 +308,7 @@ struct QtUpdater::Impl {
   QTimer timer;
   QString downloadsDir{ utils::getDefaultTemporaryDirectoryPath() };
   QString currentVersion{ QCoreApplication::applicationVersion() };
+  QDateTime currentVersionDate;
 
   Impl(QtUpdater& o, const SettingsParameters& p = {})
     : owner(o)
@@ -355,23 +356,24 @@ struct QtUpdater::Impl {
     }
   }
 
-  bool updateAvailable() const {
+  UpdateAvailability updateAvailability() const {
     const auto update = mostRecentUpdate();
     if (update && update->isValid()) {
       const auto currentVersionNumber = QVersionNumber::fromString(currentVersion);
       const auto& newVersionNumber = update->json.version;
       const auto newUpdateAvailable = QVersionNumber::compare(currentVersionNumber, newVersionNumber) < 0;
-      return newUpdateAvailable;
+      return newUpdateAvailable ? UpdateAvailability::Available : UpdateAvailability::UpToDate;
     }
-    return false;
+    return UpdateAvailability::Unknown;
   }
 
   bool changelogAvailable() const {
-    return updateAvailable() ? mostRecentUpdate()->readyToDisplayChangelog() : false;
+    return updateAvailability() == UpdateAvailability::Available ? mostRecentUpdate()->readyToDisplayChangelog()
+                                                                 : false;
   }
 
   bool installerAvailable() const {
-    return updateAvailable() ? mostRecentUpdate()->readyToInstall() : false;
+    return updateAvailability() == UpdateAvailability::Available ? mostRecentUpdate()->readyToInstall() : false;
   }
 
   bool shouldCheckForUpdate() const {
@@ -476,11 +478,12 @@ struct QtUpdater::Impl {
     emit owner.checkForUpdateFinished();
     if (newUpdateAvailable) {
       emit owner.latestVersionChanged();
+      emit owner.latestVersionDateChanged();
     }
-    emit owner.updateAvailableChanged();
+    emit owner.updateAvailabilityChanged();
   };
 
-  void onCheckForUpdateFinished(const QByteArray& data, bool cancelled) {
+  void onCheckForUpdateFinished(const QByteArray& data, bool cancelled, ErrorCode errorCode) {
     if (cancelled) {
       onlineUpdateInfo = {};
       localUpdateInfo = {};
@@ -507,7 +510,7 @@ struct QtUpdater::Impl {
 #if UPDATER_ENABLE_DEBUG
       qDebug(CATEGORY_UPDATER) << "No update available";
 #endif
-      emit owner.checkForUpdateFailed();
+      emit owner.checkForUpdateFailed(errorCode);
       notifyUpdateAvailable(false);
       return;
     }
@@ -520,7 +523,7 @@ struct QtUpdater::Impl {
       // Write downloaded JSON to disk.
       const auto [success, saveJSONFilePath] = update->json.saveToFile(downloadsDir);
       if (!success) {
-        emit owner.checkForUpdateFailed();
+        emit owner.checkForUpdateFailed(ErrorCode::DiskError);
         notifyUpdateAvailable(false);
         return;
       }
@@ -553,6 +556,7 @@ struct QtUpdater::Impl {
     setState(State::Idle);
     emit owner.changelogDownloadFinished();
     emit owner.changelogAvailableChanged();
+    emit owner.latestChangelogChanged();
   }
 
   void onDownloadInstallerFinished(const QString& filePath) {
@@ -563,21 +567,43 @@ struct QtUpdater::Impl {
 
     const auto checksumIsValid =
       QtDownloader::verifyFileChecksum(filePath, onlineUpdateInfo.json.checksum, onlineUpdateInfo.json.checksumType);
+    setState(State::Idle);
+
     if (!checksumIsValid) {
 #if UPDATER_ENABLE_DEBUG
       qCDebug(CATEGORY_UPDATER) << "Checksum is invalid";
 #endif
-      emit owner.installerDownloadFailed();
+      emit owner.installerDownloadFailed(ErrorCode::ChecksumError);
       return;
     }
 #if UPDATER_ENABLE_DEBUG
     qCDebug(CATEGORY_UPDATER) << "Checksum is valid";
 #endif
-    setState(State::Idle);
     emit owner.installerDownloadFinished();
     emit owner.installerAvailableChanged();
   }
 };
+
+QtUpdater::ErrorCode mapError(QtDownloader::ErrorCode error) {
+  switch (error) {
+    case QtDownloader::ErrorCode::NoError:
+      return QtUpdater::ErrorCode::NoError;
+    case QtDownloader::ErrorCode::UrlIsInvalid:
+      return QtUpdater::ErrorCode::UrlError;
+    case QtDownloader::ErrorCode::LocalDirIsInvalid:
+    case QtDownloader::ErrorCode::CannotCreateLocalDir:
+    case QtDownloader::ErrorCode::CannotRemoveFile:
+    case QtDownloader::ErrorCode::NotAllowedToWriteFile:
+    case QtDownloader::ErrorCode::FileDoesNotExistOrIsCorrupted:
+    case QtDownloader::ErrorCode::FileDoesNotEndWithSuffix:
+    case QtDownloader::ErrorCode::CannotRenameFile:
+      return QtUpdater::ErrorCode::DiskError;
+    case QtDownloader::ErrorCode::NetworkError:
+      return QtUpdater::ErrorCode::NetworkError;
+    default:
+      return QtUpdater::ErrorCode::UnknownError;
+  }
+}
 
 #pragma region Ctor / Dtor
 
@@ -613,8 +639,8 @@ void QtUpdater::setTemporaryDirectoryPath(const QString& path) {
   }
 }
 
-bool QtUpdater::updateAvailable() const {
-  return _impl->updateAvailable();
+QtUpdater::UpdateAvailability QtUpdater::updateAvailability() const {
+  return _impl->updateAvailability();
 }
 
 bool QtUpdater::changelogAvailable() const {
@@ -632,19 +658,18 @@ const QString& QtUpdater::serverUrl() const {
 void QtUpdater::setServerUrl(const QString& serverUrl) {
   if (serverUrl != _impl->serverUrl) {
     _impl->serverUrl = serverUrl;
+    emit serverUrlChanged();
 
     // Reset data.
     _impl->localUpdateInfo = {};
     _impl->onlineUpdateInfo = {};
-    _impl->lastCheckTime = {};
     _impl->timer.stop();
     _impl->timer.start();
 
-    emit serverUrlChanged();
-
     // If previous was empty, it means it was not yet set.
     if (_impl->serverUrlInitialized) {
-      emit updateAvailableChanged();
+      _impl->lastCheckTime = {};
+      emit updateAvailabilityChanged();
       emit installerAvailableChanged();
     } else {
       _impl->serverUrlInitialized = true;
@@ -656,6 +681,10 @@ const QString& QtUpdater::currentVersion() const {
   return _impl->currentVersion;
 }
 
+const QDateTime& QtUpdater::currentVersionDate() const {
+  return _impl->currentVersionDate;
+}
+
 QString QtUpdater::latestVersion() const {
   if (_impl->onlineUpdateInfo.isValid()) {
     return _impl->onlineUpdateInfo.json.version.toString();
@@ -663,6 +692,16 @@ QString QtUpdater::latestVersion() const {
     return _impl->localUpdateInfo.json.version.toString();
   } else {
     return _impl->currentVersion;
+  }
+}
+
+QDateTime QtUpdater::latestVersionDate() const {
+  if (_impl->onlineUpdateInfo.isValid()) {
+    return _impl->onlineUpdateInfo.json.date;
+  } else if (_impl->localUpdateInfo.isValid()) {
+    return _impl->localUpdateInfo.json.date;
+  } else {
+    return _impl->currentVersionDate;
   }
 }
 
@@ -715,6 +754,8 @@ void QtUpdater::cancel() {
     return;
 
   _impl->downloader.cancel();
+  _impl->state = State::Idle;
+  emit stateChanged();
 }
 
 #pragma endregion
@@ -732,6 +773,8 @@ void QtUpdater::checkForUpdate() {
 }
 
 void QtUpdater::forceCheckForUpdate() {
+  emit checkForUpdateForced();
+
   if (state() != State::Idle) {
     return;
   }
@@ -762,7 +805,8 @@ void QtUpdater::forceCheckForUpdate() {
         emit checkForUpdateOnlineFailed();
       }
       const auto cancelled = errorCode == QtDownloader::ErrorCode::Cancelled;
-      _impl->onCheckForUpdateFinished(data, cancelled);
+      const auto mappedErrorCode = mapError(errorCode);
+      _impl->onCheckForUpdateFinished(data, cancelled, mappedErrorCode);
     },
     [this](int const percentage) {
       emit checkForUpdateProgressChanged(percentage);
@@ -793,7 +837,7 @@ void QtUpdater::downloadChangelog() {
 
   if (!url.isValid()) {
     _impl->setState(State::Idle);
-    emit changelogDownloadFailed();
+    emit changelogDownloadFailed(ErrorCode::UrlError);
     return;
   }
   const auto& dir = _impl->downloadsDir;
@@ -807,7 +851,7 @@ void QtUpdater::downloadChangelog() {
         emit changelogDownloadCancelled();
       } else {
         _impl->setState(State::Idle);
-        emit changelogDownloadFailed();
+        emit changelogDownloadFailed(mapError(errorCode));
       }
     },
     [this](int const percentage) {
@@ -841,21 +885,20 @@ void QtUpdater::downloadInstaller() {
 
   if (!url.isValid()) {
     _impl->setState(State::Idle);
-    emit installerDownloadFailed();
+    emit installerDownloadFailed(ErrorCode::UrlError);
     return;
   }
   const auto& dir = _impl->downloadsDir;
   _impl->downloader.downloadFile(
     url, dir,
     [this](QtDownloader::ErrorCode const errorCode, const QString& filePath) {
+      _impl->setState(State::Idle);
       if (errorCode == QtDownloader::ErrorCode::NoError) {
         _impl->onDownloadInstallerFinished(filePath);
       } else if (errorCode == QtDownloader::ErrorCode::Cancelled) {
-        _impl->setState(State::Idle);
         emit installerDownloadCancelled();
       } else {
-        _impl->setState(State::Idle);
-        emit installerDownloadFailed();
+        emit installerDownloadFailed(mapError(errorCode));
       }
     },
     [this](int const percentage) {
@@ -869,18 +912,18 @@ void QtUpdater::downloadInstaller() {
 
 void QtUpdater::installUpdate(
   const InstallMode mode, const QString& moveDestinationDir, const bool quitAfter, const bool dry) {
-  const auto raiseError = [this](const char* msg = nullptr) {
+  const auto raiseError = [this](ErrorCode error, const char* msg = nullptr) {
     Q_UNUSED(msg);
 #if UPDATER_ENABLE_DEBUG
     if (msg) {
       qCDebug(CATEGORY_UPDATER) << msg;
     }
 #endif
-    emit installationFailed();
+    emit installationFailed(error);
   };
 
   if (state() != State::Idle || !_impl->installerAvailable()) {
-    raiseError("Installer not available");
+    raiseError(ErrorCode::UnknownError, "Installer not available");
     return;
   }
 
@@ -904,7 +947,7 @@ void QtUpdater::installUpdate(
 #endif
     if (!QtDownloader::verifyFileChecksum(
           update->installer.absoluteFilePath(), update->json.checksum, update->json.checksumType)) {
-      raiseError("Checksum is invalid");
+      raiseError(ErrorCode::ChecksumError, "Checksum is invalid");
       return;
     } else {
 #if UPDATER_ENABLE_DEBUG
@@ -934,7 +977,7 @@ void QtUpdater::installUpdate(
     raiseError("OS not supported");
 #endif
     if (!installerProcessSuccess) {
-      raiseError("Failed to start uninstaller");
+      raiseError(ErrorCode::InstallerExecutionError, "Failed to start uninstaller");
       _impl->setState(State::Idle);
       return;
     }
@@ -957,10 +1000,10 @@ void QtUpdater::installUpdate(
     const auto fileName = update->installer.fileName();
     const auto movedInstallerPath = moveDestinationDir + '/' + fileName;
     if (!QFile::copy(installerPath, movedInstallerPath)) {
-      raiseError("Can't copy file to new destination");
+      raiseError(ErrorCode::DiskError, "Can't copy file to new destination");
     }
     if (!QFile::remove(installerPath)) {
-      raiseError("Can't remove temporary file");
+      raiseError(ErrorCode::DiskError, "Can't remove temporary file");
     }
   }
 

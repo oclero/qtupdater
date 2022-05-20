@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.0
+
+- Improve core API
+- Fix some bugs
+- Add controller and widget
+- Add exemple for controller/widget usage.
+- The lib nows depends on `QtWidgets`.
+
 ## v1.0.12
 
 - Update submodule QtUtils to v1.0.6

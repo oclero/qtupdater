@@ -5,7 +5,7 @@
 #include <oclero/QtUpdater.hpp>
 
 int main(int argc, char* argv[]) {
-  QCoreApplication::setApplicationName("SingleInstanceExample");
+  QCoreApplication::setApplicationName("BasicUpdaterExample");
   QCoreApplication::setApplicationVersion("1.0.0");
   QCoreApplication::setOrganizationName("example");
   QCoreApplication app(argc, argv);
@@ -13,8 +13,8 @@ int main(int argc, char* argv[]) {
   oclero::QtUpdater updater;
   updater.setServerUrl("http://localhost:8000/");
 
-  QObject::connect(&updater, &oclero::QtUpdater::updateAvailableChanged, &updater, [&updater]() {
-    if (updater.updateAvailable()) {
+  QObject::connect(&updater, &oclero::QtUpdater::updateAvailabilityChanged, &updater, [&updater]() {
+    if (updater.updateAvailability() == oclero::QtUpdater::UpdateAvailability::Available) {
       qDebug() << "Update available! You have " << qPrintable(updater.currentVersion()) << " - Latest is "
                << qPrintable(updater.latestVersion());
 
@@ -39,7 +39,8 @@ int main(int argc, char* argv[]) {
 
       qDebug() << "Starting installation...";
       const auto dest = QString{ QStandardPaths::standardLocations(QStandardPaths::DownloadLocation).first() };
-      updater.installUpdate(oclero::QtUpdater::InstallMode::MoveFile, dest, /* quitAfter */ false, /* dry */ false);
+      updater.installUpdate(
+        oclero::QtUpdater::InstallMode::MoveFileToDir, dest, /* quitAfter */ false, /* dry */ false);
     }
   });
 
