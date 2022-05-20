@@ -195,7 +195,7 @@ void Tests::test_validAppcastUrl() {
   }
 
   // Latest version should be the newest one.
-  const auto updateAvailable = updater.updateAvailable();
+  const auto updateAvailable = updater.updateAvailability() == QtUpdater::UpdateAvailability::Available;
   const auto latestVersion = updater.latestVersion();
   QVERIFY(updateAvailable);
   QVERIFY(latestVersion == LATEST_VERSION);
@@ -237,7 +237,7 @@ void Tests::test_validAppcastUrlButNoServer() {
   QVERIFY(error);
 
   // Latest version should stay the current one.
-  const auto updateAvailable = updater.updateAvailable();
+  const auto updateAvailable = updater.updateAvailability() == QtUpdater::UpdateAvailability::Available;
   const auto latestVersion = updater.latestVersion();
   QVERIFY(!updateAvailable);
   QVERIFY(latestVersion == CURRENT_VERSION);
@@ -277,7 +277,7 @@ void Tests::test_validAppcastUrlButNoUpdate() {
   // Verify that these signals are called (or not) correctly.
   auto updateAvailableChanged = false;
   auto latestVersionChanged = false;
-  QObject::connect(&updater, &QtUpdater::updateAvailableChanged, this, [&updateAvailableChanged]() {
+  QObject::connect(&updater, &QtUpdater::updateAvailabilityChanged, this, [&updateAvailableChanged]() {
     // Should be always called.
     updateAvailableChanged = true;
   });
@@ -306,7 +306,7 @@ void Tests::test_validAppcastUrlButNoUpdate() {
   }
 
   // Latest version should be the current one.
-  const auto updateAvailable = updater.updateAvailable();
+  const auto updateAvailable = updater.updateAvailability() == QtUpdater::UpdateAvailability::Available;
   const auto latestVersion = updater.latestVersion();
 
   QVERIFY(!updateAvailable);
@@ -352,7 +352,7 @@ void Tests::test_validChangelogUrl() {
     QFAIL("Too late.");
   }
 
-  if (!updater.updateAvailable()) {
+  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
@@ -423,7 +423,7 @@ void Tests::test_invalidChangelogUrl() {
     QFAIL("Too late.");
   }
 
-  if (!updater.updateAvailable()) {
+  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
@@ -495,7 +495,7 @@ void Tests::test_validInstallerUrl() {
     QFAIL("Too late.");
   }
 
-  if (!updater.updateAvailable()) {
+  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
@@ -574,7 +574,7 @@ void Tests::test_invalidInstallerUrl() {
     QCoreApplication::processEvents();
   }
 
-  if (!updater.updateAvailable()) {
+  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
