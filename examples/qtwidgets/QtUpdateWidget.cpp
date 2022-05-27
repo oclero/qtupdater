@@ -1,4 +1,4 @@
-#include <oclero/QtUpdateWidget.hpp>
+#include "QtUpdateWidget.hpp"
 
 #include <oclero/QtUpdateController.hpp>
 

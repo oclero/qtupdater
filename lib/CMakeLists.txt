@@ -4,21 +4,18 @@ find_package(Qt5
   REQUIRED
     Core
     Network
-    Widgets
 )
 
 set(HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/QtUpdater.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/QtDownloader.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/QtUpdateController.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/QtUpdateWidget.hpp
 )
 
 set(SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtUpdater.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtDownloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtUpdateController.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/oclero/QtUpdateWidget.cpp
 )
 
 # Configure target.
@@ -42,7 +39,6 @@ target_link_libraries(${LIB_TARGET_NAME}
   PRIVATE
     Qt5::Core
     Qt5::Network
-    Qt5::Widgets
   PUBLIC
     oclero::QtUtils
 )

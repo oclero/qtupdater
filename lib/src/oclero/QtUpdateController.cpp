@@ -2,9 +2,6 @@
 
 #include <oclero/QtUpdater.hpp>
 
-#include <QDesktopServices>
-#include <QUrl>
-
 namespace oclero {
 QtUpdateController::QtUpdateController(oclero::QtUpdater& updater, QObject* parent)
   : QObject(parent)
@@ -151,7 +148,7 @@ void QtUpdateController::checkForUpdates() {
 void QtUpdateController::downloadUpdate() {
   if (_updater.updateAvailability() == oclero::QtUpdater::UpdateAvailability::Available) {
 #ifdef Q_OS_LINUX
-    QDesktopServices::openUrl(QUrl{ app::HOMEPAGE_URL });
+    emit linuxDownloadUpdateRequested();
     emit closeDialogRequested();
 #else
     _updater.downloadInstaller();

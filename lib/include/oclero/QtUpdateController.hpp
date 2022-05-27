@@ -73,6 +73,8 @@ signals:
   void updateDownloadErrorChanged(QtUpdater::ErrorCode code);
   void updateInstallationErrorChanged(QtUpdater::ErrorCode code);
 
+  void linuxDownloadUpdateRequested();
+
 private:
   oclero::QtUpdater& _updater;
   State _state{ State::None };
