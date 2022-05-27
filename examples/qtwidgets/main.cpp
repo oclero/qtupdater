@@ -6,7 +6,7 @@
 #include <oclero/QtUpdater.hpp>
 #include <oclero/QtUpdateController.hpp>
 
-#include <oclero/QtUpdateWidget.hpp>
+#include "QtUpdateWidget.hpp"
 
 int main(int argc, char* argv[]) {
   Q_INIT_RESOURCE(resources);
