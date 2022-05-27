@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.0
+
+- Move `QWidget` to examples instead of core lib.
+- The core lib doesn't depend on `Qt5::Widgets` anymore (useful for CLI or QtQuick apps).
+
 ## v1.1.0
 
 - Improve core API
