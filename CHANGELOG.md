@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.1
+
+- Fix QWidget example.
+
 ## v1.2.0
 
 - Move `QWidget` to examples instead of core lib.
