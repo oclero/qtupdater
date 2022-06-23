@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.0
+
+- Unify the method names.
+
 ## v1.2.1
 
 - Fix QWidget example.
