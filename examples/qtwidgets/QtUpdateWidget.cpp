@@ -67,7 +67,7 @@ public:
     checkForUpdateBtn->setText(tr("Check For Updates"));
     checkForUpdateBtn->setDefault(true);
     QObject::connect(checkForUpdateBtn, &QPushButton::clicked, this, [this, &controller]() {
-      emit controller.checkForUpdates();
+      emit controller.checkForUpdate();
     });
   }
 

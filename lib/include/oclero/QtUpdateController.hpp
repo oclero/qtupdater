@@ -54,7 +54,8 @@ private:
 
 public slots:
   void cancel();
-  void checkForUpdates();
+  void checkForUpdate();
+  void forceCheckForUpdate();
   void downloadUpdate();
   void installUpdate();
 

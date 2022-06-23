@@ -141,7 +141,11 @@ void QtUpdateController::cancel() {
   emit closeDialogRequested();
 }
 
-void QtUpdateController::checkForUpdates() {
+void QtUpdateController::checkForUpdate() {
+  _updater.checkForUpdate();
+}
+
+void QtUpdateController::forceCheckForUpdate() {
   _updater.forceCheckForUpdate();
 }
 
