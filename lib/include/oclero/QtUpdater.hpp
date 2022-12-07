@@ -36,6 +36,8 @@ class QtUpdater : public QObject {
   Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
   Q_PROPERTY(Frequency frequency READ frequency WRITE setFrequency NOTIFY frequencyChanged)
   Q_PROPERTY(QDateTime lastCheckTime READ lastCheckTime NOTIFY lastCheckTimeChanged)
+  Q_PROPERTY(InstallMode installMode READ installMode WRITE setInstallMode NOTIFY installModeChanged)
+  Q_PROPERTY(QString installerDestinationDir READ installerDestinationDir WRITE setInstallerDestinationDir NOTIFY installerDestinationDirChanged)
 
 public:
   enum class State {
@@ -110,19 +112,22 @@ public:
   Frequency frequency() const;
   QDateTime lastCheckTime() const;
   int checkTimeout() const;
+  InstallMode installMode() const;
+  const QString& installerDestinationDir() const;
 
 public slots:
   void setTemporaryDirectoryPath(const QString& path);
   void setServerUrl(const QString& serverUrl);
-  void setFrequency(oclero::QtUpdater::Frequency frequency);
+  void setFrequency(Frequency frequency);
   void checkForUpdate();
   void forceCheckForUpdate();
   void downloadChangelog();
   void downloadInstaller();
   // Set dry to true if you don't want to quit the application.
-  void installUpdate(InstallMode const mode, const QString& moveDestinationDir = {}, const bool quitAfter = true,
-    const bool dry = false);
+  void installUpdate(const bool dry = false);
   void setCheckTimeout(int timeout);
+  void setInstallMode(InstallMode mode);
+  void setInstallerDestinationDir(const QString& path);
   void cancel();
 
 signals:
@@ -134,6 +139,8 @@ signals:
   void serverUrlChanged();
   void frequencyChanged();
   void lastCheckTimeChanged();
+  void installModeChanged();
+  void installerDestinationDirChanged();
   void checkTimeoutChanged();
 
   void checkForUpdateForced();

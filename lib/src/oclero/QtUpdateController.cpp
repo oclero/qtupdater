@@ -162,7 +162,7 @@ void QtUpdateController::downloadUpdate() {
 
 void QtUpdateController::installUpdate() {
   if (_updater.installerAvailable()) {
-    _updater.installUpdate(oclero::QtUpdater::InstallMode::ExecuteFile);
+    _updater.installUpdate();
   }
 }
 } // namespace oclero

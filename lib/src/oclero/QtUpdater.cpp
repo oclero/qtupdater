@@ -281,7 +281,7 @@ struct UpdateInfo {
 #elif defined(Q_OS_MAC)
     const auto isOSInstaller = true;
 #else
-    const auto isOSInstaller = false;
+    const auto isOSInstaller = true;
 #endif
 
     return isValid() && installer.exists() && installer.isFile() && isOSInstaller;
@@ -309,6 +309,8 @@ struct QtUpdater::Impl {
   QString downloadsDir{ utils::getDefaultTemporaryDirectoryPath() };
   QString currentVersion{ QCoreApplication::applicationVersion() };
   QDateTime currentVersionDate;
+  InstallMode installMode{ InstallMode::ExecuteFile };
+  QString installerDestinationDir;
 
   Impl(QtUpdater& o, const SettingsParameters& p = {})
     : owner(o)
@@ -373,7 +375,10 @@ struct QtUpdater::Impl {
   }
 
   bool installerAvailable() const {
-    return updateAvailability() == UpdateAvailability::Available ? mostRecentUpdate()->readyToInstall() : false;
+    if (updateAvailability() == UpdateAvailability::Available) {
+      return installMode == InstallMode::ExecuteFile ? mostRecentUpdate()->readyToInstall() : true;
+    }
+    return false;
   }
 
   bool shouldCheckForUpdate() const {
@@ -748,6 +753,28 @@ void QtUpdater::setCheckTimeout(int timeout) {
   }
 }
 
+QtUpdater::InstallMode QtUpdater::installMode() const {
+  return _impl->installMode;
+}
+
+void QtUpdater::setInstallMode(QtUpdater::InstallMode installMode) {
+  if (installMode != _impl->installMode) {
+    _impl->installMode = installMode;
+    emit installModeChanged();
+  }
+}
+
+const QString& QtUpdater::installerDestinationDir() const {
+  return _impl->installerDestinationDir;
+}
+
+void QtUpdater::setInstallerDestinationDir(const QString& path) {
+  if (path != _impl->installerDestinationDir) {
+    _impl->installerDestinationDir = path;
+    emit installerDestinationDirChanged();
+  }
+}
+
 void QtUpdater::cancel() {
   const auto currentState = state();
   if (currentState == State::Idle || currentState == State::InstallingUpdate)
@@ -775,7 +802,7 @@ void QtUpdater::checkForUpdate() {
 void QtUpdater::forceCheckForUpdate() {
   emit checkForUpdateForced();
 
-  if (state() != State::Idle) {
+  if (state() != State::Idle || _impl->serverUrl.isEmpty()) {
     return;
   }
 
@@ -910,8 +937,7 @@ void QtUpdater::downloadInstaller() {
     _impl->checkTimeout);
 }
 
-void QtUpdater::installUpdate(
-  const InstallMode mode, const QString& moveDestinationDir, const bool quitAfter, const bool dry) {
+void QtUpdater::installUpdate(const bool dry) {
   const auto raiseError = [this](ErrorCode error, const char* msg = nullptr) {
     Q_UNUSED(msg);
 #if UPDATER_ENABLE_DEBUG
@@ -964,7 +990,7 @@ void QtUpdater::installUpdate(
   }
 
   // Start installer in a separate process.
-  if (mode == InstallMode::ExecuteFile) {
+  if (_impl->installMode == InstallMode::ExecuteFile) {
 #if UPDATER_ENABLE_DEBUG
     qCDebug(CATEGORY_UPDATER) << "Starting installer...";
 #endif
@@ -974,7 +1000,7 @@ void QtUpdater::installUpdate(
 #elif defined(Q_OS_MAC)
     installerProcessSuccess = QProcess::startDetached("open", { update->installer.absoluteFilePath() });
 #else
-    raiseError("OS not supported");
+    raiseError(ErrorCode::InstallerExecutionError, "OS not supported");
 #endif
     if (!installerProcessSuccess) {
       raiseError(ErrorCode::InstallerExecutionError, "Failed to start uninstaller");
@@ -986,19 +1012,19 @@ void QtUpdater::installUpdate(
 #endif
 
     // Quit the app.
-    if (quitAfter) {
+    if (_impl->installMode == InstallMode::ExecuteFile) {
 #if UPDATER_ENABLE_DEBUG
       qCDebug(CATEGORY_UPDATER) << "App will quit to let the installer do the update";
 #endif
       QCoreApplication::quit();
     }
-  } else if (mode == InstallMode::MoveFileToDir && !moveDestinationDir.isEmpty()) {
+  } else if (_impl->installMode == InstallMode::MoveFileToDir && !_impl->installerDestinationDir.isEmpty()) {
 #if UPDATER_ENABLE_DEBUG
     qCDebug(CATEGORY_UPDATER) << "Moving file...";
 #endif
     const auto installerPath = update->installer.absoluteFilePath();
     const auto fileName = update->installer.fileName();
-    const auto movedInstallerPath = moveDestinationDir + '/' + fileName;
+    const auto movedInstallerPath = _impl->installerDestinationDir + '/' + fileName;
     if (!QFile::copy(installerPath, movedInstallerPath)) {
       raiseError(ErrorCode::DiskError, "Can't copy file to new destination");
     }
