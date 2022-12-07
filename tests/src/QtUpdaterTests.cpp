@@ -67,7 +67,6 @@ QString getAppCast(const QString& version) {
 
 void Tests::test_emptyServerUrl() {
   QtUpdater updater("");
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   auto hasStartedChecking = false;
   QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&hasStartedChecking]() {
@@ -79,14 +78,13 @@ void Tests::test_emptyServerUrl() {
   });
 
   // Start checking. The updater should immediately fail.
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
 
   QVERIFY(hasStartedChecking == false);
 }
 
 void Tests::test_invalidServerUrl() {
   QtUpdater updater("dummyInvalidUrl");
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   auto done = false;
   auto failed = false;
@@ -99,7 +97,7 @@ void Tests::test_invalidServerUrl() {
   });
 
   // Start checking. The updater should immediately fail.
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
 
   // Wait for timeout.
   if (!QTest::qWaitFor(
@@ -116,7 +114,6 @@ void Tests::test_invalidServerUrl() {
 void Tests::test_validServerUrlButNoServer() {
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   auto done = false;
   auto error = false;
@@ -130,7 +127,7 @@ void Tests::test_validServerUrlButNoServer() {
   });
 
   // Start checking. It should fail after a timeout.
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
 
   // Wait for the client to receive the response from the server.
   if (!QTest::qWaitFor(
@@ -153,7 +150,7 @@ void Tests::test_validAppcastUrl() {
   });
 
   // Start server in a thread.
-  auto t = std::thread([&server]() {
+   std::thread t([&server]() {
     if (!server.listen(SERVER_HOST, SERVER_PORT)) {
       server.stop();
       QFAIL("Can't start server");
@@ -162,7 +159,6 @@ void Tests::test_validAppcastUrl() {
 
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::EveryDay);
 
   auto done = false;
   auto error = false;
@@ -176,7 +172,7 @@ void Tests::test_validAppcastUrl() {
   });
 
   // Start checking.
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
 
   // Wait for the client to receive the response from the server.
   if (!QTest::qWaitFor(
@@ -202,6 +198,7 @@ void Tests::test_validAppcastUrl() {
 
   // A second check should not be made because a check has already been made the same day.
   done = false;
+  updater.setFrequency(QtUpdater::Frequency::EveryDay);
   updater.checkForUpdate();
   QVERIFY(!done);
 }
@@ -209,7 +206,6 @@ void Tests::test_validAppcastUrl() {
 void Tests::test_validAppcastUrlButNoServer() {
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::EveryDay);
 
   auto done = false;
   auto error = false;
@@ -223,7 +219,7 @@ void Tests::test_validAppcastUrlButNoServer() {
   });
 
   // Start checking.
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
 
   // Wait for the timeout.
   if (!QTest::qWaitFor(
@@ -261,7 +257,6 @@ void Tests::test_validAppcastUrlButNoUpdate() {
 
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   auto done = false;
   auto error = false;
@@ -287,7 +282,7 @@ void Tests::test_validAppcastUrlButNoUpdate() {
   });
 
   // Start checking.
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
 
   // Wait for the client to receive the response from the server.
   if (!QTest::qWaitFor(
@@ -336,14 +331,13 @@ void Tests::test_validChangelogUrl() {
 
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   // Check for updates.
   auto checked = false;
   QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
   if (!QTest::qWaitFor(
         [&checked]() {
           return checked;
@@ -407,14 +401,13 @@ void Tests::test_invalidChangelogUrl() {
 
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   // Check for updates.
   auto checked = false;
   QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
   if (!QTest::qWaitFor(
         [&checked]() {
           return checked;
@@ -479,14 +472,13 @@ void Tests::test_validInstallerUrl() {
 
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   // Check for updates.
   auto checked = false;
   QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
   if (!QTest::qWaitFor(
         [&checked]() {
           return checked;
@@ -539,7 +531,7 @@ void Tests::test_validInstallerUrl() {
     installationFailed = true;
     installationFinished = true;
   });
-  updater.installUpdate(QtUpdater::InstallMode::ExecuteFile, {}, true, /*dry*/ true);
+  updater.installUpdate(/*dry*/ true);
   QVERIFY(installationFinished);
   QVERIFY(!installationFailed);
 }
@@ -562,14 +554,13 @@ void Tests::test_invalidInstallerUrl() {
 
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   // Check for updates.
   auto checked = false;
   QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
   while (!checked) {
     QCoreApplication::processEvents();
   }
@@ -611,7 +602,7 @@ void Tests::test_invalidInstallerUrl() {
   QObject::connect(&updater, &QtUpdater::installationFinished, this, [&installationFinished]() {
     installationFinished = true;
   });
-  updater.installUpdate(QtUpdater::InstallMode::ExecuteFile, {}, true, /*dry*/ true);
+  updater.installUpdate(/*dry*/ true);
   QVERIFY(installationFinished);
   QVERIFY(installationFailed);
 }
@@ -636,7 +627,6 @@ void Tests::test_cancel() {
 
   // Configure updater.
   QtUpdater updater(SERVER_URL_FOR_CLIENT);
-  updater.setFrequency(QtUpdater::Frequency::Never);
 
   // Check for updates.
   auto checked = false;
@@ -647,7 +637,7 @@ void Tests::test_cancel() {
   QObject::connect(&updater, &QtUpdater::checkForUpdateCancelled, this, [&cancelled]() {
     cancelled = true;
   });
-  updater.checkForUpdate();
+  updater.forceCheckForUpdate();
   updater.cancel();
 
   if (!QTest::qWaitFor(
