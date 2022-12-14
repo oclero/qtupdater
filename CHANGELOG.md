@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.0
+
+- Make `installMode` and `installerDestinationDir` properties instead of function args.
+- Fix compilation and build on Linux.
+
 ## v1.3.0
 
 - Unify the method names.
