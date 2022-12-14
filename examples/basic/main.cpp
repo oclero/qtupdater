@@ -12,6 +12,8 @@ int main(int argc, char* argv[]) {
 
   oclero::QtUpdater updater;
   updater.setServerUrl("http://localhost:8000/");
+  updater.setInstallerDestinationDir(QStandardPaths::standardLocations(QStandardPaths::DownloadLocation).first());
+  updater.setInstallMode(oclero::QtUpdater::InstallMode::MoveFileToDir);
 
   QObject::connect(&updater, &oclero::QtUpdater::updateAvailabilityChanged, &updater, [&updater]() {
     if (updater.updateAvailability() == oclero::QtUpdater::UpdateAvailability::Available) {
@@ -38,13 +40,12 @@ int main(int argc, char* argv[]) {
       qDebug() << "Installer downloaded!";
 
       qDebug() << "Starting installation...";
-      const auto dest = QString{ QStandardPaths::standardLocations(QStandardPaths::DownloadLocation).first() };
-      updater.installUpdate(
-        oclero::QtUpdater::InstallMode::MoveFileToDir, dest, /* quitAfter */ false, /* dry */ false);
+
+      updater.installUpdate(/* dry */ false);
     }
   });
 
-  QObject::connect(&updater, &oclero::QtUpdater::installationFinished, &updater, [&updater]() {
+  QObject::connect(&updater, &oclero::QtUpdater::installationFinished, &updater, []() {
     qDebug() << "Installation done!";
   });
 

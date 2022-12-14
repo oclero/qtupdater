@@ -21,6 +21,11 @@ QString toBold(const QString& str) {
   return QString("<b>%1</b>").arg(str);
 }
 
+QString dateToString(const QDateTime& date) {
+  QLocale locale;
+  return locale.toString(date.date(), QLocale::FormatType::ShortFormat);
+}
+
 class StartPage : public QWidget {
 public:
   StartPage(QtUpdateController& controller, QWidget* parent = nullptr)
@@ -59,15 +64,15 @@ public:
 
     auto* cancelBtn = btnBox->button(QDialogButtonBox::StandardButton::Cancel);
     cancelBtn->setAutoDefault(false);
-    QObject::connect(cancelBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(cancelBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
 
     auto* checkForUpdateBtn = btnBox->button(QDialogButtonBox::StandardButton::Apply);
     checkForUpdateBtn->setText(tr("Check For Updates"));
     checkForUpdateBtn->setDefault(true);
-    QObject::connect(checkForUpdateBtn, &QPushButton::clicked, this, [this, &controller]() {
-      emit controller.checkForUpdate();
+    QObject::connect(checkForUpdateBtn, &QPushButton::clicked, this, [&controller]() {
+      controller.checkForUpdate();
     });
   }
 
@@ -130,7 +135,7 @@ public:
     auto* cancelBtn = btnBox->button(QDialogButtonBox::StandardButton::Cancel);
     cancelBtn->setAutoDefault(false);
     cancelBtn->setDefault(false);
-    QObject::connect(cancelBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(cancelBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
   }
@@ -176,7 +181,7 @@ public:
 
     auto* okBtn = btnBox->button(QDialogButtonBox::StandardButton::Ok);
     okBtn->setDefault(true);
-    QObject::connect(okBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(okBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
 
@@ -225,7 +230,7 @@ public:
 
     auto* okBtn = btnBox->button(QDialogButtonBox::StandardButton::Ok);
     okBtn->setDefault(true);
-    QObject::connect(okBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(okBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
   }
@@ -275,12 +280,12 @@ public:
     auto* downloadButton = btnBox->button(QDialogButtonBox::StandardButton::Apply);
     downloadButton->setDefault(true);
     downloadButton->setText(tr("Download"));
-    QObject::connect(downloadButton, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(downloadButton, &QPushButton::clicked, this, [&controller]() {
       controller.downloadUpdate();
     });
     auto* cancelBtn = btnBox->button(QDialogButtonBox::StandardButton::Cancel);
     cancelBtn->setAutoDefault(false);
-    QObject::connect(cancelBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(cancelBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
 
@@ -308,9 +313,9 @@ public:
 private:
   void updateLabelText() {
     const auto currentVersion = _controller.currentVersion();
-    const auto currentVersionDate = _controller.currentVersionDate().toString(Qt::DateFormat::DefaultLocaleShortDate);
+    const auto currentVersionDate = dateToString(_controller.currentVersionDate());
     const auto latestVersion = _controller.latestVersion();
-    const auto latestVersionDate = _controller.latestVersionDate().toString(Qt::DateFormat::DefaultLocaleShortDate);
+    const auto latestVersionDate = dateToString(_controller.latestVersionDate());
     const auto text =
       QString("You have version <b>%1</b> (released on %2).<br/>Version <b>%3</b> is available (released on %4).")
         .arg(currentVersion)
@@ -376,7 +381,7 @@ public:
     auto* cancelBtn = btnBox->button(QDialogButtonBox::StandardButton::Cancel);
     cancelBtn->setAutoDefault(false);
     cancelBtn->setDefault(false);
-    QObject::connect(cancelBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(cancelBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
 
@@ -429,7 +434,7 @@ public:
 
     auto* okBtn = btnBox->button(QDialogButtonBox::StandardButton::Ok);
     okBtn->setDefault(true);
-    QObject::connect(okBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(okBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
 
@@ -480,12 +485,12 @@ public:
     installButton->setAutoDefault(false);
     installButton->setDefault(true);
     installButton->setText(tr("Install"));
-    QObject::connect(installButton, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(installButton, &QPushButton::clicked, this, [&controller]() {
       controller.installUpdate();
     });
     auto* cancelBtn = btnBox->button(QDialogButtonBox::StandardButton::No);
     cancelBtn->setAutoDefault(false);
-    QObject::connect(cancelBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(cancelBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
   }
@@ -538,7 +543,7 @@ public:
     auto* cancelBtn = btnBox->button(QDialogButtonBox::StandardButton::Cancel);
     cancelBtn->setAutoDefault(false);
     cancelBtn->setDefault(false);
-    QObject::connect(cancelBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(cancelBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
   }
@@ -584,7 +589,7 @@ public:
 
     auto* okBtn = btnBox->button(QDialogButtonBox::StandardButton::Ok);
     okBtn->setDefault(true);
-    QObject::connect(okBtn, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(okBtn, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
 
@@ -632,7 +637,7 @@ public:
     layout->addWidget(btnBox, 0, Qt::AlignBottom);
 
     auto* okButton = btnBox->button(QDialogButtonBox::StandardButton::Ok);
-    QObject::connect(okButton, &QPushButton::clicked, this, [this, &controller]() {
+    QObject::connect(okButton, &QPushButton::clicked, this, [&controller]() {
       controller.cancel();
     });
 
@@ -646,9 +651,9 @@ public:
 private:
   void updateLabelText() {
     const auto currentVersion = _controller.currentVersion();
-    const auto currentVersionDate = _controller.currentVersionDate().toString(Qt::DateFormat::DefaultLocaleShortDate);
+    const auto currentVersionDate = dateToString(_controller.currentVersionDate());
     const auto latestVersion = _controller.latestVersion();
-    const auto latestVersionDate = _controller.latestVersionDate().toString(Qt::DateFormat::DefaultLocaleShortDate);
+    const auto latestVersionDate = dateToString(_controller.latestVersionDate());
     const auto text =
       tr("You have version <b>%1</b> (released on %2).<br/>Version <b>%3</b> is available (released on %4).")
         .arg(currentVersion)

@@ -20,6 +20,7 @@ int main(int argc, char* argv[]) {
   // 1. Create updater backend.
   oclero::QtUpdater updater;
   updater.setServerUrl("http://localhost:8000/");
+  updater.setFrequency(oclero::QtUpdater::Frequency::Never);
 
   // 2. Create update dialog controller.
   oclero::QtUpdateController updateCtrl(updater);
