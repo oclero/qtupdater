@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.1
+
+- Update submodule QtUtils to v1.1.0
+
 ## v1.4.0
 
 - Make `installMode` and `installerDestinationDir` properties instead of function args.
