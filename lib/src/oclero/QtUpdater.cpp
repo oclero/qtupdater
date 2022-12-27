@@ -4,6 +4,7 @@
 
 #include <oclero/QtEnumUtils.hpp>
 #include <oclero/QtSettingsUtils.hpp>
+#include <oclero/QtFileUtils.hpp>
 
 #include <QLoggingCategory>
 #include <QFile>
@@ -27,26 +28,6 @@ Q_LOGGING_CATEGORY(CATEGORY_UPDATER, "oclero.qtupdater")
 #endif
 
 namespace utils {
-void clearDirectoryContent(const QString& dirPath, const QStringList& extensionFilter = {}) {
-  QDir dir(dirPath);
-  if (!dir.exists()) {
-    return;
-  }
-
-  const auto& entryInfoList = extensionFilter.isEmpty()
-                                ? dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden)
-                                : dir.entryInfoList(extensionFilter, QDir::Files | QDir::Hidden);
-  for (const auto& entryInfo : entryInfoList) {
-    const auto entryAbsPath = entryInfo.absoluteFilePath();
-    if (entryInfo.isDir()) {
-      QDir subDir(entryAbsPath);
-      subDir.removeRecursively();
-    } else {
-      dir.remove(entryAbsPath);
-    }
-  }
-}
-
 QString getDefaultTemporaryDirectoryPath() {
   QString result;
 
@@ -470,7 +451,7 @@ struct QtUpdater::Impl {
     const auto allFilesExist =
       localChangelog.exists() && localChangelog.isFile() && localInstaller.exists() && localInstaller.isFile();
     if (!allFilesExist) {
-      utils::clearDirectoryContent(downloadsDir);
+      oclero::clearDirectoryContent(downloadsDir);
       return UpdateInfo{};
     }
 
@@ -523,7 +504,7 @@ struct QtUpdater::Impl {
     // If the most recent is the one from the server,
     // wipe existing files because there are obsolete.
     if (update == &onlineUpdateInfo) {
-      utils::clearDirectoryContent(downloadsDir);
+      oclero::clearDirectoryContent(downloadsDir);
 
       // Write downloaded JSON to disk.
       const auto [success, saveJSONFilePath] = update->json.saveToFile(downloadsDir);
