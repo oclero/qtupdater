@@ -79,11 +79,13 @@ struct QtDownloader::Impl {
     const auto partialFilePath = finalFilePath + PARTIAL_DOWNLOAD_SUFFIX;
 
     // Remove file if it was previously downloaded.
-    QFile previousFile{ finalFilePath };
-    if (previousFile.exists()) {
-      if (!previousFile.remove()) {
-        onFileDownloadFinished(ErrorCode::CannotRemoveFile);
-        return;
+    for (const auto& previousPath : { partialFilePath, finalFilePath }) {
+      QFile previousFile{ previousPath };
+      if (previousFile.exists()) {
+        if (!previousFile.remove()) {
+          onFileDownloadFinished(ErrorCode::CannotRemoveFile);
+          return;
+        }
       }
     }
 
@@ -103,13 +105,16 @@ struct QtDownloader::Impl {
     }
 
     auto request = QNetworkRequest(url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::SameOriginRedirectPolicy);
     request.setTransferTimeout(timeout);
     reply = manager.get(request);
     if (onProgress) {
       onProgress(0);
       progressConnection = QObject::connect(
         reply, &QNetworkReply::downloadProgress, &owner, [this](qint64 bytesReceived, qint64 bytesTotal) {
-          onDownloadProgress(bytesReceived, bytesTotal);
+          if (bytesTotal >= bytesReceived) {
+            onDownloadProgress(bytesReceived, bytesTotal);
+          }
         });
     }
 
