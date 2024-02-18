@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.19.0)
+cmake_minimum_required(VERSION 3.21.0)
 enable_testing()
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -17,10 +17,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+# Library dependencies.
+include(FetchContent)
+FetchContent_Declare(httplib
+  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+  GIT_TAG v0.15.3
+  GIT_SHALLOW TRUE
+)
+FetchContent_Declare(qtutils
+  GIT_REPOSITORY https://github.com/oclero/qtutils.git
+  GIT_TAG v1.1.0
+)
+FetchContent_MakeAvailable(httplib qtutils)
+
 # The library.
-add_subdirectory(submodules/qtutils)
-set_target_properties(QtUtils PROPERTIES FOLDER submodules)
-add_subdirectory(lib)
+add_subdirectory(src)
 
 if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
   # Tests.

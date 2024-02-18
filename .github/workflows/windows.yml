@@ -1,0 +1,39 @@
+name: Windows
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+      - setup-ci
+  pull_request:
+    branches:
+      - master
+      - dev
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check Out
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: "5.15.2"
+          host: windows
+          target: desktop
+
+      - name: Configure CMake
+        run: cmake --preset windows
+
+      - name: Build library
+        run: cmake --build --preset windows
+
+      - name: Build tests
+        run: cmake --build --preset windows-test
+
+      - name: Run tests
+        run: ctest --preset windows

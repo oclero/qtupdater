@@ -1,0 +1,39 @@
+name: Linux
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+      - setup-ci
+  pull_request:
+    branches:
+      - master
+      - dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Out
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: "5.15.2"
+          host: linux
+          target: desktop
+
+      - name: Configure CMake
+        run: cmake --preset linux
+
+      - name: Build library
+        run: cmake --build --preset linux
+
+      - name: Build tests
+        run: cmake --build --preset linux-test
+
+      - name: Run tests
+        run: ctest --preset linux

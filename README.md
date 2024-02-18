@@ -40,7 +40,7 @@ This library contains:
 - A controller: `QtUpdateController`, that may be use with QtWidgets or QtQuick/QML.
 - A widget: `QtUpdateWidget`, that may be used as a `QWidget` or inside a `QDialog`.
 
-It has these features:
+It provides these features:
 
 - Get latest update information.
 - Get changelog.
@@ -51,31 +51,23 @@ It has these features:
 
 ## Usage
 
-1. Add the library's repository as a Git submodule.
-
-   ```bash
-   git submodule add git@github.com:oclero/QtUpdater.git submodules/qtupdater
-   ```
-
-2. Download submodules.
-
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-3. Add the library to your CMake project.
+1. Add the library as a dependency with CMake FetchContent.
 
    ```cmake
-   add_subdirectory(submodules/qtupdater)
+   include(FetchContent)
+   FetchContent_Declare(QtUpdater
+    GIT_REPOSITORY "https://github.com/oclero/qtupdater.git"
+   )
+   FetchContent_MakeAvailable(QtUpdater)
    ```
 
-4. Link with the library in CMake.
+2. Link with the library in CMake.
 
    ```cmake
    target_link_libraries(your_project oclero::QtUpdater)
    ```
 
-5. Include the only necessary header in your C++ file.
+3. Include the only necessary header in your C++ file.
 
    ```c++
    #include <oclero/QtUpdater.hpp>
@@ -111,8 +103,8 @@ The protocol is the following:
 4. The client downloads the installer from `installerUrl`, if any provided.
 
 5. The client installs the installer:
-    - The client may start the installer and quit, if necessary.
-    - It may also move the downloaded file to some location.
+   - The client may start the installer and quit, if necessary.
+   - It may also move the downloaded file to some location.
 
 ## Example
 

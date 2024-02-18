@@ -5,7 +5,7 @@ function(target_deploy_qt TARGET_NAME)
   elseif(APPLE)
     set(DEPLOYQT_NAME "macdeployqt")
   else()
-    message(FATAL_ERROR "Unsupported platform")
+    set(DEPLOYQT_NAME "")
   endif()
 
   if (DEPLOYQT_NAME)
