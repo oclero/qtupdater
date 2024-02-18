@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.5.0
+
+- Rename `lib` folder into `src`, and `src` subfolder into `source`.
+- Add CI jobs to build and test on Windows, Linux and MacOS.
+- Follow redirects when downloading.
+- Add CMake presets.
+- Use CMake FetchContent instead of a Git Submodule for dependency QtUtils.
+
 ## v1.4.1
 
 - Update submodule QtUtils to v1.1.0

@@ -7,7 +7,7 @@ include(DeployQt)
 # Set project information.
 project("QtUpdater"
   LANGUAGES CXX
-  VERSION 1.4.1.0
+  VERSION 1.5.0.0
 )
 set(PROJECT_NAMESPACE "oclero")
 
@@ -26,7 +26,6 @@ FetchContent_Declare(httplib
 )
 FetchContent_Declare(qtutils
   GIT_REPOSITORY https://github.com/oclero/qtutils.git
-  GIT_TAG v1.1.0
 )
 FetchContent_MakeAvailable(httplib qtutils)
 
