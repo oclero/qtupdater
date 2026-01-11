@@ -1,253 +1,249 @@
-import os
-from urllib import parse
-from distutils import version
-import glob
-import json
-from typing import Dict, List
+"""HTTP server for serving Qt updater test files."""
+
+from dataclasses import dataclass
 from pathlib import Path
-from http.server import BaseHTTPRequestHandler
+from urllib import parse
+from packaging import version
+import json
 import logging
+from http.server import BaseHTTPRequestHandler
 
-###################################################################################################
 # Constants.
-
 ALIAS_VERSION_LATEST = 'latest'
-ALIAS_BRANCH_MAIN = 'release'
-PACKAGE_FILE_EXTENSION = 'exe'
-CHANGELOG_FILE_EXTENSION = 'md'
+PACKAGE_EXTENSIONS = {'.exe', '.dmg'}
+CHANGELOG_EXTENSION = '.md'
 MIMETYPES = {
-  '.exe': 'application/vnd.microsoft.portable-executable',
-  '.dmg': 'application/vnd.apple.diskimage',
-  '.md': 'text/markdown',
+    '.exe': 'application/vnd.microsoft.portable-executable',
+    '.dmg': 'application/vnd.apple.diskimage',
+    '.md': 'text/markdown',
+    '.json': 'application/json',
 }
 
-###################################################################################################
-# Classes.
 
-class VersionInformation(object):
-  version = version.StrictVersion('0.0.0')
-  json_filepath = ''
-  installer_filepath = ''
-  changelog_filepath = ''
-  json_data = None
+@dataclass
+class VersionInformation:
+  """Information about a specific version."""
+  version: version.Version
+  json_filepath: Path
+  installer_url: str
+  changelog_url: str
+  json_data: dict
 
-  def __init__(self, version, json_filepath = '', installer_filepath = '', changelog_filepath = '', json_data = None):
-    self.version = version
-    self.json_filepath = json_filepath
-    self.installer_filepath = installer_filepath
-    self.changelog_filepath = changelog_filepath
-    self.json_data = json_data
 
-  def __repr__(self):
-    return str(self.__dict__)
+@dataclass
+class RequestResult:
+  """Result of processing an HTTP request."""
+  success: bool
+  message: str = ''
+  filepath: Path | None = None
+  content: bytes = b''
+  content_type: str = ''
 
-class RequestResult(object):
-  success = False
-  message = '' # Error message.
-  filepath = '' # Path on the server.
-  content = bytes(0) # Request data.
-  size = 0 # Data size.
-  content_type = '' # MIME type.
+  @property
+  def size(self) -> int:
+    return len(self.content)
 
-  def __init__(self, success, message, filepath = '', content = bytes(0), size = 0, content_type = ''):
-    self.success = success
-    self.message = message
-    self.filepath = filepath
-    self.content = content
-    self.size = size
-    self.content_type = content_type
 
-  def __repr__(self):
-    return str(self.__dict__)
-
-###################################################################################################
-# Internal functions.
-
-def get_available_versions(root_dir, server_address) -> List[VersionInformation]:
+def get_available_versions(root_dir: str, server_address: str) -> list[VersionInformation]:
+  """Find all available versions in the root directory."""
   available_versions = []
+  root_path = Path(root_dir)
 
-  # Find all available versions.
-  json_files = glob.glob(os.path.abspath(root_dir + '/*.json'))
-  for json_file in json_files:
+  for json_file in root_path.glob('*.json'):
     try:
-      with open(json_file, 'rb') as f:
-        print(json_file)
+      with open(json_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
-        data_version = version.StrictVersion(data['version'])
-        file_name = Path(json_file).stem
+        data_version = version.parse(data['version'])
+        file_stem = json_file.stem
 
-        # Add field 'url' that contains a public link to the installer file.
-        installer_url = f'http://{server_address}/{file_name}.{PACKAGE_FILE_EXTENSION}'
-        if os.path.isfile(os.path.abspath(f'{root_dir}/{file_name}.{PACKAGE_FILE_EXTENSION}')):
-          data['installerUrl'] = installer_url
-        else:
-          raise Exception()
+        # Check for installer file.
+        installer_file = None
+        for ext in PACKAGE_EXTENSIONS:
+          potential_installer = root_path / f'{file_stem}{ext}'
+          if potential_installer.is_file():
+            installer_file = potential_installer
+            break
 
-        # Add fild 'changelog' that contains a public link to the changelog file.
-        changelog_url = f'http://{server_address}/{file_name}.{CHANGELOG_FILE_EXTENSION}'
-        if os.path.isfile(os.path.abspath(f'{root_dir}/{file_name}.{CHANGELOG_FILE_EXTENSION}')):
-          data['changelogUrl'] = changelog_url
-        else:
-          raise Exception()
+        if not installer_file:
+          continue
 
-        available_versions.append(VersionInformation(data_version, json_file, installer_url, changelog_url, data))
-    except:
-      # Silently ignore IO errors.
-      pass
+        # Check for changelog file.
+        changelog_file = root_path / f'{file_stem}{CHANGELOG_EXTENSION}'
+        if not changelog_file.is_file():
+          continue
 
-  # Sort them from older to newer.
+        # Build URLs.
+        installer_url = f'http://{server_address}/{installer_file.name}'
+        changelog_url = f'http://{server_address}/{changelog_file.name}'
+
+        data['installerUrl'] = installer_url
+        data['changelogUrl'] = changelog_url
+
+        available_versions.append(VersionInformation(
+            version=data_version,
+            json_filepath=json_file,
+            installer_url=installer_url,
+            changelog_url=changelog_url,
+            json_data=data
+        ))
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+      logging.warning(f'Skipping invalid version file {json_file}: {e}')
+
+  # Sort from oldest to newest.
   available_versions.sort(key=lambda item: item.version)
-
   return available_versions
 
-def get_latest_version(available_versions) -> version.StrictVersion:
-  if len(available_versions) > 0:
-    return available_versions[-1]
-  else:
-    return None
 
-def get_params(query) -> Dict[str, str]:
-  # Parse query.
+def get_latest_version(available_versions: list[VersionInformation]) -> VersionInformation | None:
+  """Get the latest version from the list."""
+  return available_versions[-1] if available_versions else None
+
+
+def get_query_params(query: str) -> dict[str, str]:
+  """Parse query string into a dictionary."""
   query_params = parse.parse_qs(query)
-
   # Flatten lists by keeping only the first element.
-  for key in query_params.keys():
-    if isinstance(query_params[key], list):
-      query_params[key] = query_params[key][0]
+  return {key: values[0] for key, values in query_params.items()}
 
-  return query_params
 
-def get_extension(path) -> str:
-  return os.path.splitext(path)[1]
-
-def get_version(query_params, latest_version) -> version.StrictVersion:
-  if latest_version is None:
-    return None
-
+def get_requested_version(
+    query_params: dict[str, str],
+    latest_version: version.Version
+) -> version.Version | None:
+  """Parse and validate the requested version."""
   version_str = query_params.get('version', ALIAS_VERSION_LATEST)
 
-  # If it is alias keyword, get actual latest version.
   if version_str == ALIAS_VERSION_LATEST:
     return latest_version
 
-  # Check if version is valid.
-  query_version = None
   try:
-    query_version = version.StrictVersion(version_str)
-  except:
-    query_version = None
+    return version.parse(version_str)
+  except version.InvalidVersion:
+    return None
 
-  return query_version
 
-def handle_appcast_request(request_url, root_dir, server_address) -> RequestResult:
-  # Check path validity.
-  request_path_elements = request_url.path.split('/')
-  if len(request_path_elements) != 2:
-    return RequestResult(False, 'Invalid URL')
+def handle_appcast_request(
+    request_url: parse.SplitResult,
+    root_dir: str,
+    server_address: str
+) -> RequestResult:
+  """Handle request for version JSON (appcast)."""
+  # Validate URL path.
+  path_elements = [p for p in request_url.path.split('/') if p]
+  if len(path_elements) != 0:  # Should be just '/'
+    return RequestResult(False, 'Invalid URL for appcast')
 
-  # Check query parameters.
-  request_query_params = get_params(request_url.query)
-
-  # Check if version is valid.
+  # Get available versions.
   available_versions = get_available_versions(root_dir, server_address)
-  latest_version = get_latest_version(available_versions)
+  latest = get_latest_version(available_versions)
 
-  if latest_version is None:
-    return RequestResult(False, 'No latest version available')
+  if not latest:
+    return RequestResult(False, 'No versions available')
 
-  request_version = get_version(request_query_params, latest_version.version)
-  if request_version is None:
-    return RequestResult(False, 'Invalid version: %s' % (request_query_params['version']))
+  # Parse query parameters.
+  query_params = get_query_params(request_url.query)
+  requested_version = get_requested_version(query_params, latest.version)
 
-  if request_version > latest_version.version:
-    return RequestResult(False, 'Version not available (too high): %s' % (request_version))
+  if not requested_version:
+    return RequestResult(False, f'Invalid version: {query_params.get("version")}')
 
-  # Check if version is available.
-  matching_versions = [x for x in available_versions if x.version == request_version]
-  if len(matching_versions) == 0:
-    return RequestResult(False, 'Version not available')
+  if requested_version > latest.version:
+    return RequestResult(False, f'Version not available: {requested_version}')
 
-  # Get JSON content.
-  matching_version = matching_versions[0]
-  result_filepath = matching_version.json_filepath
-  result_content = json.dumps(matching_version.json_data).encode('utf-8')
-  result_size = len(result_content)
-  result_content_type = 'application/json'
+  # Find matching version.
+  matching = [v for v in available_versions if v.version == requested_version]
+  if not matching:
+    return RequestResult(False, f'Version not available: {requested_version}')
 
-  return RequestResult(True, '', result_filepath, result_content, result_size, result_content_type)
+  # Return JSON content.
+  matching_version = matching[0]
+  content = json.dumps(matching_version.json_data, indent=2).encode('utf-8')
 
-def handle_file_request(request_url, root_dir) -> RequestResult:
-  # Check path validity.
-  request_path_elements = request_url.path.split('/')
-  if len(request_path_elements) != 2:
-    return RequestResult(False, 'Invalid URL')
+  return RequestResult(
+      success=True,
+      filepath=matching_version.json_filepath,
+      content=content,
+      content_type=MIMETYPES['.json']
+  )
 
-  request_file = request_path_elements[1]
-  result_filepath = f'{root_dir}/{request_file}'
 
-  if not os.path.isfile(result_filepath):
+def handle_file_request(request_url: parse.SplitResult, root_dir: str) -> RequestResult:
+  """Handle request for a file download."""
+  # Validate URL path
+  path_elements = [p for p in request_url.path.split('/') if p]
+  if len(path_elements) != 1:
+    return RequestResult(False, 'Invalid file URL')
+
+  # Security check: prevent directory traversal
+  filename = path_elements[0]
+  if '..' in filename or filename.startswith('.'):
+    return RequestResult(False, 'Invalid filename')
+
+  # Check file existence
+  file_path = Path(root_dir) / filename
+  if not file_path.is_file() or not file_path.resolve().is_relative_to(Path(root_dir).resolve()):
     return RequestResult(False, 'File does not exist')
 
-  # Get file content.
-  result_content = bytes(0)
-  result_size = 0
-  result_content_type = ''
-
+  # Read file content
   try:
-    result_size = os.path.getsize(result_filepath)
-    with open(result_filepath, 'rb') as f:
-      result_content = f.read()
-      result_size = len(result_content)
-  except:
-    return RequestResult(False, 'Cannot read file content')
+    content = file_path.read_bytes()
+  except OSError as e:
+    return RequestResult(False, f'Cannot read file: {e}')
 
-  # Get file content-type.
-  file_extension = get_extension(request_file)
-  result_content_type = MIMETYPES[file_extension]
+  # Determine content type
+  content_type = MIMETYPES.get(file_path.suffix, 'application/octet-stream')
 
-  return RequestResult(True, '', result_filepath, result_content, result_size, result_content_type)
+  return RequestResult(
+      success=True,
+      filepath=file_path,
+      content=content,
+      content_type=content_type
+  )
 
-###################################################################################################
 
 class Server(BaseHTTPRequestHandler):
-  root_dir = '.'
+  """HTTP request handler for the development server."""
+  root_dir: str = '.'
 
-  def handle_request(self, url, root_dir, server_address) -> RequestResult:
+  def handle_request(self, url: str, root_dir: str, server_address: str) -> RequestResult:
+    """Route request to appropriate handler."""
     request_url = parse.urlsplit(url)
-    request_extension = get_extension(request_url.path)
+    extension = Path(request_url.path).suffix
 
-    # Check if the URL is valid.
-    if '..' in request_url.path or '/.' in request_url.path or './' in request_url.path:
-      return RequestResult(False, 'Invalid URL')
+    # Security check.
+    if '..' in request_url.path or '/.' in request_url.path:
+      return RequestResult(False, 'Invalid URL (security)')
 
-    # Handle request.
-    if request_extension == '':
-      # Case: request for JSON file.
+    # Route based on extension.
+    if extension == '':
       return handle_appcast_request(request_url, root_dir, server_address)
-    elif request_extension == '.exe' or request_extension == '.dmg' or request_extension == '.md':
-      # Case: request to download file.
+    elif extension in PACKAGE_EXTENSIONS or extension == CHANGELOG_EXTENSION:
       return handle_file_request(request_url, root_dir)
     else:
-      return RequestResult(False, 'Invalid URL')
+      return RequestResult(False, f'Unsupported file type: {extension}')
 
-  def do_GET(self):
-    logging.debug('Request received: \'%s\'' % (self.path))
-    request_result = self.handle_request(self.path, self.root_dir, "%s:%s" % self.server.server_address)
+  def do_GET(self) -> None:
+    """Handle GET requests."""
+    logging.info(f'Request: {self.path}')
+    server_address = f'{self.server.server_address[0]}:{self.server.server_address[1]}'
+    result = self.handle_request(self.path, self.root_dir, server_address)
 
-    if request_result.success:
-      logging.debug('Request succeeded (\'%s\')' % (os.path.basename(request_result.filepath)))
-    else:
-      logging.debug('Request failed (%s)' % (request_result.message))
-
-    if request_result.success:
+    if result.success:
+      logging.info(
+        f'Success: {result.filepath.name if result.filepath else "appcast"}')
       self.send_response(200)
-      self.send_header('Accept', request_result.content_type)
-      self.send_header('Content-Type', request_result.content_type)
-      self.send_header('Content-Length', str(request_result.size))
+      self.send_header('Content-Type', result.content_type)
+      self.send_header('Content-Length', str(result.size))
+      self.send_header('Access-Control-Allow-Origin', '*')
       self.end_headers()
-      self.wfile.write(request_result.content)
-
+      self.wfile.write(result.content)
     else:
+      logging.warning(f'Failed: {result.message}')
       self.send_response(404)
-      self.send_header('Content-type', 'text/html')
+      self.send_header('Content-Type', 'text/plain')
       self.end_headers()
+      self.wfile.write(result.message.encode('utf-8'))
+
+  def log_message(self, format: str, *args) -> None:
+    """Override to prevent duplicate logging."""
+    pass

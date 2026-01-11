@@ -17,14 +17,16 @@ jobs:
 
     steps:
       - name: Check Out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
-          version: "5.15.2"
+          version: "6.10.1"
           host: windows
           target: desktop
+          arch: win64_msvc2022_64
+          modules: "qtwebsockets qthttpserver"
 
       - name: Configure CMake
         run: cmake --preset windows

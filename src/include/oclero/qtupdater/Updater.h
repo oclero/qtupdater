@@ -1,104 +1,74 @@
 #pragma once
 
+#include <oclero/qtupdater/Types.h>
+
 #include <QObject>
 #include <QString>
 #include <QDateTime>
 #include <QSettings>
+#include <QJsonObject>
+#include <QJsonDocument>
 
 #include <memory>
 
-namespace oclero {
+namespace oclero::qtupdater {
 /**
- * @brief Updater that checks for updates and download installer (Windows-only feature).
- * The Updater expects a JSON response like this from the server.
- * {
- *   "version": "x.y.z",
- *   "date": "dd/MM/YYYY",
- *   "checksum": "418397de9ef332cd0e477ff5e8ca38d4",
- *   "checksumType": "md5",
- *   "installerUrl": "http://server/endpoint/package-name.exe",
- *   "changelogUrl": "http://server/endpoint/changelog-name.md"
- * }
+ * @brief Updater that checks for updates and downloads installer.
  */
-class QtUpdater : public QObject {
+class Updater : public QObject {
   Q_OBJECT
 
   Q_PROPERTY(QString temporaryDirectoryPath READ temporaryDirectoryPath WRITE setTemporaryDirectoryPath NOTIFY
       temporaryDirectoryPathChanged)
-  Q_PROPERTY(UpdateAvailability updateAvailability READ updateAvailability NOTIFY updateAvailabilityChanged)
+  Q_PROPERTY(
+    oclero::qtupdater::UpdateAvailability updateAvailability READ updateAvailability NOTIFY updateAvailabilityChanged)
   Q_PROPERTY(bool installerAvailable READ installerAvailable NOTIFY installerAvailableChanged)
   Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
   Q_PROPERTY(QDateTime currentVersionDate READ currentVersionDate CONSTANT)
   Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY latestVersionChanged)
   Q_PROPERTY(QDateTime latestVersionDate READ latestVersionDate NOTIFY latestVersionDateChanged)
   Q_PROPERTY(QString latestChangelog READ latestChangelog NOTIFY latestChangelogChanged)
-  Q_PROPERTY(State state READ state NOTIFY stateChanged)
+  Q_PROPERTY(oclero::qtupdater::UpdaterState state READ state NOTIFY stateChanged)
   Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
   Q_PROPERTY(Frequency frequency READ frequency WRITE setFrequency NOTIFY frequencyChanged)
   Q_PROPERTY(QDateTime lastCheckTime READ lastCheckTime NOTIFY lastCheckTimeChanged)
-  Q_PROPERTY(InstallMode installMode READ installMode WRITE setInstallMode NOTIFY installModeChanged)
-  Q_PROPERTY(QString installerDestinationDir READ installerDestinationDir WRITE setInstallerDestinationDir NOTIFY installerDestinationDirChanged)
+  Q_PROPERTY(oclero::qtupdater::InstallMode installMode READ installMode WRITE setInstallMode NOTIFY installModeChanged)
+  Q_PROPERTY(QString installerDestinationDir READ installerDestinationDir WRITE setInstallerDestinationDir NOTIFY
+      installerDestinationDirChanged)
 
 public:
-  enum class State {
-    Idle,
-    CheckingForUpdate,
-    DownloadingChangelog,
-    DownloadingInstaller,
-    InstallingUpdate,
-  };
-  Q_ENUM(State)
-
-  enum class UpdateAvailability {
-    Unknown,
-    UpToDate,
-    Available,
-  };
-  Q_ENUM(UpdateAvailability)
-
-  enum class Frequency {
-    Never,
-    EveryStart,
-    EveryHour,
-    EveryDay,
-    EveryWeek,
-    EveryTwoWeeks,
-    EveryMonth,
-  };
-  Q_ENUM(Frequency)
-
-  enum class InstallMode {
-    ExecuteFile,
-    MoveFileToDir,
-  };
-  Q_ENUM(InstallMode)
-
-  struct SettingsParameters {
-    QSettings::Format format;
-    QSettings::Scope scope;
-    QString organization;
-    QString application;
-  };
-
-  enum class ErrorCode {
-    NoError,
-    UrlError,
-    NetworkError,
-    DiskError,
-    ChecksumError,
-    InstallerExecutionError,
-    UnknownError,
-  };
-  Q_ENUM(ErrorCode)
+  explicit Updater(QObject* parent = nullptr);
+  explicit Updater(const QString& serverUrl, QObject* parent = nullptr);
+  explicit Updater(const QString& serverUrl, const SettingsParameters& settingsParameters, QObject* parent = nullptr);
+  ~Updater() override;
 
 public:
-  explicit QtUpdater(QObject* parent = nullptr);
-  QtUpdater(const QString& serverUrl, QObject* parent = nullptr);
-  QtUpdater(const QString& serverUrl, const SettingsParameters& settingsParameters, QObject* parent = nullptr);
-  ~QtUpdater();
+  /**
+   * @brief Set the Custom Json Parser object. By default, the parser expects a JSON object with the
+   * following structure:
+   * {
+   * "latestVersion": "1.2.3",
+   * "latestVersionDate": "2023-01-01T12:00:00Z",
+   * "changelog": "Changelog text here",
+   * "installerUrl": "https://example.com/installer.exe",
+   * }
+   *
+   * If your server returns a different structure, you can provide a custom parser function to extract
+   * the necessary information.
+   *
+   * @param customParser A function that takes a QJsonDocument and returns a QJsonObject with the expected structure.
+   */
+  void setCustomJsonParser(const std::function<QJsonObject(const QJsonDocument&)>& customParser);
 
-public:
   const QString& temporaryDirectoryPath() const;
+  void setTemporaryDirectoryPath(const QString& path);
+
+  const QString& serverUrl() const;
+  void setServerUrl(const QString& serverUrl);
+
+  void setFrequency(Frequency frequency);
+  Frequency frequency() const;
+
   UpdateAvailability updateAvailability() const;
   bool changelogAvailable() const;
   bool installerAvailable() const;
@@ -107,18 +77,13 @@ public:
   QString latestVersion() const;
   QDateTime latestVersionDate() const;
   const QString& latestChangelog() const;
-  State state() const;
-  const QString& serverUrl() const;
-  Frequency frequency() const;
+  UpdaterState state() const;
   QDateTime lastCheckTime() const;
   int checkTimeout() const;
   InstallMode installMode() const;
   const QString& installerDestinationDir() const;
 
 public slots:
-  void setTemporaryDirectoryPath(const QString& path);
-  void setServerUrl(const QString& serverUrl);
-  void setFrequency(Frequency frequency);
   void checkForUpdate();
   void forceCheckForUpdate();
   void downloadChangelog();
@@ -126,7 +91,7 @@ public slots:
   // Set dry to true if you don't want to quit the application.
   void installUpdate(const bool dry = false);
   void setCheckTimeout(int timeout);
-  void setInstallMode(InstallMode mode);
+  void setInstallMode(oclero::qtupdater::InstallMode mode);
   void setInstallerDestinationDir(const QString& path);
   void cancel();
 
@@ -148,26 +113,26 @@ signals:
   void checkForUpdateProgressChanged(int percentage);
   void checkForUpdateFinished();
   void checkForUpdateOnlineFailed();
-  void checkForUpdateFailed(ErrorCode error);
+  void checkForUpdateFailed(oclero::qtupdater::UpdaterError error);
   void checkForUpdateCancelled();
   void updateAvailabilityChanged();
 
   void changelogDownloadStarted();
   void changelogDownloadProgressChanged(int percentage);
   void changelogDownloadFinished();
-  void changelogDownloadFailed(ErrorCode error);
+  void changelogDownloadFailed(oclero::qtupdater::UpdaterError error);
   void changelogDownloadCancelled();
   void changelogAvailableChanged();
 
   void installerDownloadStarted();
   void installerDownloadProgressChanged(int percentage);
   void installerDownloadFinished();
-  void installerDownloadFailed(ErrorCode error);
+  void installerDownloadFailed(oclero::qtupdater::UpdaterError error);
   void installerDownloadCancelled();
   void installerAvailableChanged();
 
   void installationStarted();
-  void installationFailed(ErrorCode error);
+  void installationFailed(oclero::qtupdater::UpdaterError error);
   // Emitted only when run in dry mode.
   void installationFinished();
 
@@ -175,4 +140,4 @@ private:
   struct Impl;
   std::unique_ptr<Impl> _impl;
 };
-} // namespace oclero
+} // namespace oclero::qtupdater

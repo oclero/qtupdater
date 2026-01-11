@@ -1,1 +1,7 @@
 server.log
+__pycache__/
+*.pyc
+*.pyo
+.Python
+venv/
+.venv/

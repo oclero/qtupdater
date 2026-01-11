@@ -3,10 +3,10 @@
 #include <QStandardPaths>
 #include <QIcon>
 
-#include <oclero/QtUpdater.hpp>
-#include <oclero/QtUpdateController.hpp>
+#include <oclero/qtupdater/Updater.h>
+#include <oclero/qtupdater/Controller.h>
 
-#include "QtUpdateWidget.hpp"
+#include "QtUpdateWidget.h"
 
 int main(int argc, char* argv[]) {
   Q_INIT_RESOURCE(resources);
@@ -18,15 +18,15 @@ int main(int argc, char* argv[]) {
   QApplication::setWindowIcon(QIcon(":/example/icon.ico"));
 
   // 1. Create updater backend.
-  oclero::QtUpdater updater;
+  oclero::qtupdater::Updater updater;
   updater.setServerUrl("http://localhost:8000/");
-  updater.setFrequency(oclero::QtUpdater::Frequency::Never);
+  updater.setFrequency(oclero::qtupdater::Frequency::Never);
 
   // 2. Create update dialog controller.
-  oclero::QtUpdateController updateCtrl(updater);
+  oclero::qtupdater::Controller updateCtrl(updater);
 
   // 3. Create and show dialog.
-  auto* widget = new oclero::QtUpdateWidget(updateCtrl);
+  auto* widget = new oclero::qtupdater::QtUpdateWidget(updateCtrl);
   widget->show();
 
   return app.exec();

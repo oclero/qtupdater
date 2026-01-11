@@ -1,0 +1,12 @@
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find required Qt components.
+find_dependency(Qt6 COMPONENTS Core Network)
+
+# Include the targets file.
+include("${CMAKE_CURRENT_LIST_DIR}/QtUpdaterTargets.cmake")
+
+check_required_components(QtUpdater)

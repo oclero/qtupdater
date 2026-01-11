@@ -1,7 +1,7 @@
 #include <QTest>
 #include <QCoreApplication>
 
-#include "QtUpdaterTests.hpp"
+#include "QtUpdaterTests.h"
 
 int main(int argc, char* argv[]) {
   QTEST_SET_MAIN_SOURCE_PATH;

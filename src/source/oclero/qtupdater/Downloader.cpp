@@ -1,6 +1,4 @@
-#include <oclero/QtDownloader.hpp>
-
-#include <oclero/QtPointerUtils.hpp>
+#include <oclero/qtupdater/Downloader.h>
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -10,16 +8,20 @@
 #include <QDir>
 #include <QCryptographicHash>
 #include <QPointer>
+#include <QString>
+#include <QUrl>
+#include <QByteArray>
+#include <QEventLoop>
 
 #include <optional>
 #include <cmath>
 
-namespace oclero {
+namespace oclero::qtupdater {
 static const QString PARTIAL_DOWNLOAD_SUFFIX = ".part";
-static const int PARTIAL_DOWNLOAD_SUFFIX_LENGTH = PARTIAL_DOWNLOAD_SUFFIX.length();
+static const int PARTIAL_DOWNLOAD_SUFFIX_LENGTH = static_cast<int>(PARTIAL_DOWNLOAD_SUFFIX.length());
 
-struct QtDownloader::Impl {
-  QtDownloader& owner;
+struct Downloader::Impl {
+  Downloader& owner;
   QNetworkAccessManager manager;
   QUrl url;
   QFileInfo fileInfo;
@@ -38,29 +40,40 @@ struct QtDownloader::Impl {
   QByteArray downloadedData;
   int timeout{ DefaultTimeout };
 
-  Impl(QtDownloader& o)
+  Impl(Downloader& o)
     : owner(o) {
     manager.setAutoDeleteReplies(false);
   }
 
   ~Impl() {
+    // Clear callbacks FIRST before any cleanup
+    onFileFinished = nullptr;
+    onDataFinished = nullptr;
+    onProgress = nullptr;
+
+    // Disconnect our specific connections
     QObject::disconnect(progressConnection);
     QObject::disconnect(readyReadConnection);
     QObject::disconnect(finishedConnection);
   }
 
   void startFileDownload() {
+    // Disconnect any previous connections to avoid multiple lambdas executing
+    QObject::disconnect(progressConnection);
+    QObject::disconnect(readyReadConnection);
+    QObject::disconnect(finishedConnection);
+
     isDownloading = true;
 
     // Check url validity.
     if (url.isEmpty() || !url.isValid()) {
-      onFileDownloadFinished(ErrorCode::UrlIsInvalid);
+      onFileDownloadFinished(DownloaderError::UrlIsInvalid);
       return;
     }
 
     // Check directory.
     if (localDir.isEmpty()) {
-      onFileDownloadFinished(ErrorCode::LocalDirIsInvalid);
+      onFileDownloadFinished(DownloaderError::LocalDirIsInvalid);
       return;
     }
 
@@ -68,7 +81,7 @@ struct QtDownloader::Impl {
     QDir dir(localDir);
     if (!dir.exists()) {
       if (!dir.mkpath(".")) {
-        onFileDownloadFinished(ErrorCode::CannotCreateLocalDir);
+        onFileDownloadFinished(DownloaderError::CannotCreateLocalDir);
         return;
       }
     }
@@ -83,7 +96,7 @@ struct QtDownloader::Impl {
       QFile previousFile{ previousPath };
       if (previousFile.exists()) {
         if (!previousFile.remove()) {
-          onFileDownloadFinished(ErrorCode::CannotRemoveFile);
+          onFileDownloadFinished(DownloaderError::CannotRemoveFile);
           return;
         }
       }
@@ -94,13 +107,13 @@ struct QtDownloader::Impl {
     fileStream.reset(new QFile(partialFilePath));
     if (fileStream->exists()) {
       if (!fileStream->remove()) {
-        onFileDownloadFinished(ErrorCode::CannotRemoveFile);
+        onFileDownloadFinished(DownloaderError::CannotRemoveFile);
         return;
       }
     }
 
     if (!fileStream->open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
-      onFileDownloadFinished(ErrorCode::NotAllowedToWriteFile);
+      onFileDownloadFinished(DownloaderError::NotAllowedToWriteFile);
       return;
     }
 
@@ -138,61 +151,80 @@ struct QtDownloader::Impl {
   }
 
   void startDataDownload() {
+    // Disconnect any previous connections to avoid multiple lambdas executing
+    QObject::disconnect(progressConnection);
+    QObject::disconnect(readyReadConnection);
+    QObject::disconnect(finishedConnection);
+
     isDownloading = true;
     downloadedData.clear();
 
-    if (url.isEmpty() || !url.isValid()) {
-      onDataDownloadFinished(ErrorCode::UrlIsInvalid);
+    const auto scheme = url.scheme();
+    if (url.isEmpty() || !url.isValid() || scheme.isEmpty()) {
+      onDataDownloadFinished(DownloaderError::UrlIsInvalid);
       return;
     }
 
+    // Create request.
     auto request = QNetworkRequest(url);
     request.setTransferTimeout(timeout);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::SameOriginRedirectPolicy);
+
+    // Do GET request.
     reply = manager.get(request);
 
     const auto error = reply->error();
     if (error != QNetworkReply::NoError) {
-      onDataDownloadFinished(ErrorCode::NetworkError);
+      onDataDownloadFinished(DownloaderError::NetworkError);
+      return;
     }
 
     if (onProgress) {
       onProgress(0);
 
       progressConnection = QObject::connect(
-        reply, &QNetworkReply::downloadProgress, &owner, [this](qint64 bytesReceived, qint64 bytesTotal) {
+        reply, &QNetworkReply::downloadProgress, &owner,
+        [this](qint64 bytesReceived, qint64 bytesTotal) {
           onDownloadProgress(bytesReceived, bytesTotal);
-        });
+        },
+        Qt::QueuedConnection);
     }
 
-    readyReadConnection = QObject::connect(reply, &QNetworkReply::readyRead, &owner, [this]() {
-      if (reply->bytesAvailable()) {
-        downloadedData.append(reply->readAll());
-      }
-    });
+    readyReadConnection = QObject::connect(
+      reply, &QNetworkReply::readyRead, &owner,
+      [this]() {
+        if (reply->bytesAvailable()) {
+          downloadedData.append(reply->readAll());
+        }
+      },
+      Qt::QueuedConnection);
 
-    finishedConnection = QObject::connect(reply, &QNetworkReply::finished, &owner, [this]() {
-      if (onProgress) {
-        onProgress(100);
-      }
+    finishedConnection = QObject::connect(
+      reply, &QNetworkReply::finished, &owner,
+      [this]() {
+        if (onProgress) {
+          onProgress(100);
+        }
 
-      QObject::disconnect(progressConnection);
-      QObject::disconnect(readyReadConnection);
-      QObject::disconnect(finishedConnection);
-      const auto errorCode = handleDataReply(reply, cancelled);
-      onDataDownloadFinished(errorCode);
-    });
+        QObject::disconnect(progressConnection);
+        QObject::disconnect(readyReadConnection);
+        QObject::disconnect(finishedConnection);
+        const auto errorCode = handleDataReply(reply, cancelled);
+        onDataDownloadFinished(errorCode);
+      },
+      Qt::QueuedConnection);
   }
 
-  void onFileDownloadFinished(ErrorCode const errorCode) {
+  void onFileDownloadFinished(DownloaderError const errorCode) {
     isDownloading = false;
     cancelled = false;
     if (onFileFinished) {
-      downloadedFilepath = errorCode != ErrorCode::NoError ? QString{} : fileInfo.absoluteFilePath();
+      downloadedFilepath = errorCode != DownloaderError::NoError ? QString{} : fileInfo.absoluteFilePath();
       onFileFinished(errorCode, downloadedFilepath);
     }
   }
 
-  void onDataDownloadFinished(ErrorCode const errorCode) {
+  void onDataDownloadFinished(DownloaderError const errorCode) {
     isDownloading = false;
     cancelled = false;
     if (onDataFinished) {
@@ -203,7 +235,7 @@ struct QtDownloader::Impl {
   void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal) {
     // Arbitrary minimum size above which we consider we are actually downloading a real file (>= 1KB),
     // and not just a reply from the server.
-    if (bytesTotal >= 1000) {
+    if (bytesTotal >= 1024) {
       const auto percentage = bytesTotal == 0 ? 0. : (bytesReceived * 100.) / bytesTotal;
       const auto percentageInt = static_cast<int>(std::round(percentage));
       if (onProgress) {
@@ -212,74 +244,81 @@ struct QtDownloader::Impl {
     }
   }
 
-  ErrorCode handleFileReply(QNetworkReply* reply, bool cancelled) {
+  // RAII guard to handle file stream cleanup.
+  struct FileStreamGuard {
+    Impl* impl{ nullptr };
+    bool removeFile{ true };
+
+    FileStreamGuard(Impl* impl)
+      : impl(impl) {}
+
+    ~FileStreamGuard() {
+      impl->isDownloading = false;
+      if (removeFile && impl->fileStream) {
+        impl->fileStream->remove();
+      }
+      impl->fileStream.reset(nullptr);
+    }
+  };
+
+  DownloaderError handleFileReply(QNetworkReply* reply, bool cancelled) {
     assert(reply);
     assert(fileStream.get());
 
     if (!reply)
-      return ErrorCode::NetworkError;
+      return DownloaderError::NetworkError;
 
-    QtDeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> replyRAII(reply);
 
-    const auto closeFilestream = [this, reply](bool const removeFile) {
-      isDownloading = false;
-      if (removeFile) {
-        fileStream->remove();
-      }
-      fileStream.reset(nullptr);
-    };
+    FileStreamGuard fileStreamGuard(this);
 
     // Cancelled by user.
     if (cancelled) {
-      closeFilestream(true);
-      return ErrorCode::Cancelled;
+      return DownloaderError::Cancelled;
     }
 
     // Network error.
     if (reply->error() != QNetworkReply::NoError) {
-      closeFilestream(true);
-      return ErrorCode::NetworkError;
+      return DownloaderError::NetworkError;
     }
 
     // IO error.
     if (!fileInfo.exists()) {
-      closeFilestream(true);
-      return ErrorCode::FileDoesNotExistOrIsCorrupted;
+      return DownloaderError::FileDoesNotExistOrIsCorrupted;
     }
 
     // Filename should end with a certain suffix as we are still writing to disk.
     if (!fileInfo.fileName().endsWith(PARTIAL_DOWNLOAD_SUFFIX)) {
-      closeFilestream(true);
-      return ErrorCode::FileDoesNotEndWithSuffix;
+      return DownloaderError::FileDoesNotEndWithSuffix;
     }
 
     // Rename file as it is fully downloaded
     auto actualFileName = fileInfo.absoluteFilePath().chopped(PARTIAL_DOWNLOAD_SUFFIX_LENGTH);
     fileInfo.setFile(actualFileName);
     if (!fileStream->rename(actualFileName)) {
-      closeFilestream(true);
-      return ErrorCode::CannotRenameFile;
+      return DownloaderError::CannotRenameFile;
     }
 
     // File is ready.
-    closeFilestream(false);
-    return ErrorCode::NoError;
+    fileStreamGuard.removeFile = false;
+    return DownloaderError::NoError;
   }
 
-  ErrorCode handleDataReply(QNetworkReply* reply, bool cancelled) {
+  DownloaderError handleDataReply(QNetworkReply* reply, bool cancelled) {
     assert(reply);
 
     if (!reply)
-      return ErrorCode::NetworkError;
+      return DownloaderError::NetworkError;
 
-    QtDeleteLaterScopedPointer<QNetworkReply> replyRAII(reply);
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> replyRAII(reply);
 
     // Cancelled by user.
     if (cancelled) {
-      return ErrorCode::Cancelled;
+      return DownloaderError::Cancelled;
     }
 
-    return reply->error() != QNetworkReply::NoError ? ErrorCode::NetworkError : ErrorCode::NoError;
+    const auto reply_error = reply->error();
+    return reply_error != QNetworkReply::NoError ? DownloaderError::NetworkError : DownloaderError::NoError;
   }
 
   static std::optional<QCryptographicHash::Algorithm> getQtAlgorithm(ChecksumType const checksumType) {
@@ -298,17 +337,17 @@ struct QtDownloader::Impl {
   }
 };
 
-QtDownloader::QtDownloader(QObject* parent)
+Downloader::Downloader(QObject* parent)
   : QObject(parent)
   , _impl(new Impl(*this)) {}
 
-QtDownloader::~QtDownloader() = default;
+Downloader::~Downloader() {}
 
-void QtDownloader::downloadFile(const QUrl& url, const QString& localDir, const FileFinishedCallback&& onFinished,
+void Downloader::downloadFile(const QUrl& url, const QString& localDir, const FileFinishedCallback&& onFinished,
   const ProgressCallback&& onProgress, const int timeout) {
   if (_impl->isDownloading) {
     if (onFinished) {
-      onFinished(ErrorCode::AlreadyDownloading, {});
+      onFinished(DownloaderError::AlreadyDownloading, {});
     }
     return;
   }
@@ -325,11 +364,11 @@ void QtDownloader::downloadFile(const QUrl& url, const QString& localDir, const 
   _impl->startFileDownload();
 }
 
-void QtDownloader::downloadData(
+void Downloader::downloadData(
   const QUrl& url, const DataFinishedCallback&& onFinished, const ProgressCallback&& onProgress, const int timeout) {
   if (_impl->isDownloading) {
     if (onFinished) {
-      onFinished(ErrorCode::AlreadyDownloading, {});
+      onFinished(DownloaderError::AlreadyDownloading, {});
     }
     return;
   }
@@ -340,14 +379,16 @@ void QtDownloader::downloadData(
   _impl->onDataFinished = onFinished;
   _impl->onProgress = onProgress;
   _impl->timeout = timeout;
+  if (_impl->reply) {
+    _impl->reply->deleteLater();
+  }
   _impl->reply.clear();
   _impl->cancelled = false;
 
   _impl->startDataDownload();
 }
 
-
-void QtDownloader::cancel() {
+void Downloader::cancel() {
   if (isDownloading()) {
     _impl->cancelled = true;
 
@@ -358,11 +399,11 @@ void QtDownloader::cancel() {
   }
 }
 
-bool QtDownloader::isDownloading() const {
+bool Downloader::isDownloading() const {
   return _impl->isDownloading;
 }
 
-bool QtDownloader::verifyFileChecksum(const QString& filePath, const QString& checksumStr,
+bool Downloader::verifyFileChecksum(const QString& filePath, const QString& checksumStr,
   ChecksumType const checksumType, InvalidChecksumBehavior const behavior) {
   if (checksumType == ChecksumType::NoChecksum) {
     return true;
@@ -395,4 +436,4 @@ bool QtDownloader::verifyFileChecksum(const QString& filePath, const QString& ch
 
   return result;
 }
-} // namespace oclero
+} // namespace oclero::qtupdater

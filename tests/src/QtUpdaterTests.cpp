@@ -1,15 +1,18 @@
-#include "QtUpdaterTests.hpp"
+#include "QtUpdaterTests.h"
 
-#include <httplib.h>
-#include <oclero/QtUpdater.hpp>
+#include <QHttpServer>
+#include <QHttpServerResponse>
+#include <QTcpServer>
+
+#include <oclero/qtupdater/Updater.h>
 
 #include <QCryptographicHash>
 #include <QCoreApplication>
 #include <QTest>
+#include <QTimer>
+#include <QThread>
 
-#include <thread>
-
-using namespace oclero;
+using namespace oclero::qtupdater;
 
 namespace {
 constexpr auto CURRENT_VERSION = "1.0.0";
@@ -17,10 +20,6 @@ constexpr auto LATEST_VERSION = "2.0.0";
 constexpr auto SERVER_PORT = 8080;
 constexpr auto SERVER_HOST = "0.0.0.0";
 constexpr auto SERVER_URL = "localhost";
-
-constexpr auto APPCAST_QUERY_REGEX = R"(\/)";
-constexpr auto INSTALLER_QUERY_REGEX = R"(\/installer-.+\.(exe|dmg)?)";
-constexpr auto CHANGELOG_QUERY_REGEX = R"(\/changelog-.+\.md?)";
 
 constexpr auto CONTENT_TYPE_JSON = "application/json";
 constexpr auto CONTENT_TYPE_EXE = "application/vnd.microsoft.portable-executable";
@@ -58,22 +57,60 @@ QString getInstallerChecksum(const char* data) {
   return installerHash;
 }
 
-QString getAppCast(const QString& version) {
+QString getAppCastStr(const QString& version) {
   static const auto checksum = getInstallerChecksum(DUMMY_INSTALLER_DATA);
   const auto todayDate = QDate::currentDate().toString("dd/MM/yyyy");
-  return QString(APPCAST_TEMPLATE).arg(version).arg(todayDate).arg(checksum).arg(SERVER_URL_FOR_CLIENT);
+  return QString(APPCAST_TEMPLATE).arg(version, todayDate, checksum, SERVER_URL_FOR_CLIENT);
 }
+
+// Wrapper class to simplify HTTP server setup in tests.
+class TestHttpServer {
+  QHttpServer _httpServer;
+  bool _started = false;
+
+public:
+  TestHttpServer() = default;
+
+  template<typename Functor>
+  bool route(const QString& path, Functor&& handler) {
+    _httpServer.route(path, std::forward<Functor>(handler));
+    return start();
+  }
+
+  template<typename Functor>
+  bool addRoute(const QString& path, Functor&& handler) {
+    _httpServer.route(path, std::forward<Functor>(handler));
+    return true;
+  }
+
+  bool start() {
+    if (_started) {
+      return true;
+    }
+
+    auto tcpServer = new QTcpServer();
+    if (!tcpServer->listen(QHostAddress::LocalHost, SERVER_PORT) || !_httpServer.bind(tcpServer)) {
+      delete tcpServer;
+      return false;
+    }
+
+    _started = true;
+    return true;
+  }
+};
+
 } // namespace
 
 void Tests::test_emptyServerUrl() {
-  QtUpdater updater("");
+  Updater updater("");
+  updater.setCheckTimeout(1000);
 
   auto hasStartedChecking = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&hasStartedChecking]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&hasStartedChecking]() {
     hasStartedChecking = true;
   });
 
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFailed, this, [&hasStartedChecking]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFailed, this, [&hasStartedChecking]() {
     hasStartedChecking = true;
   });
 
@@ -84,14 +121,15 @@ void Tests::test_emptyServerUrl() {
 }
 
 void Tests::test_invalidServerUrl() {
-  QtUpdater updater("dummyInvalidUrl");
+  Updater updater("dummyInvalidUrl");
+  updater.setCheckTimeout(1000);
 
   auto done = false;
   auto failed = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&done]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&done]() {
     done = true;
   });
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFailed, this, [&done, &failed]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFailed, this, [&done, &failed]() {
     failed = true;
     done = true;
   });
@@ -113,23 +151,23 @@ void Tests::test_invalidServerUrl() {
 
 void Tests::test_validServerUrlButNoServer() {
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   auto done = false;
-  auto error = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&done]() {
+  auto failed = false;
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&done]() {
     done = true;
   });
 
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFailed, this, [&done, &error]() {
-    error = true;
+  QObject::connect(&updater, &Updater::checkForUpdateFailed, this, [&done, &failed]() {
+    failed = true;
     done = true;
   });
 
   // Start checking. It should fail after a timeout.
   updater.forceCheckForUpdate();
 
-  // Wait for the client to receive the response from the server.
+  // Wait for the client to receive the error.
   if (!QTest::qWaitFor(
         [&done]() {
           return done;
@@ -138,35 +176,30 @@ void Tests::test_validServerUrlButNoServer() {
     QFAIL("Too late.");
   }
 
-  QVERIFY(error);
+  QVERIFY(failed);
 }
 
 void Tests::test_validAppcastUrl() {
   // Server.
-  httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    const auto appCast = getAppCast(LATEST_VERSION);
-    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
-  });
-
-  // Start server in a thread.
-   std::thread t([&server]() {
-    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
-      server.stop();
-      QFAIL("Can't start server");
-    }
-  });
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(LATEST_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
 
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
+
 
   auto done = false;
   auto error = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&done]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&done]() {
     done = true;
   });
 
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFailed, this, [&done, &error]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFailed, this, [&done, &error]() {
     error = true;
     done = true;
   });
@@ -182,8 +215,6 @@ void Tests::test_validAppcastUrl() {
         updater.checkTimeout())) {
     QFAIL("Too late.");
   }
-  server.stop();
-  t.join();
 
   if (error) {
     QFAIL("Can't download latest version JSON");
@@ -191,29 +222,29 @@ void Tests::test_validAppcastUrl() {
   }
 
   // Latest version should be the newest one.
-  const auto updateAvailable = updater.updateAvailability() == QtUpdater::UpdateAvailability::Available;
+  const auto updateAvailable = updater.updateAvailability() == UpdateAvailability::Available;
   const auto latestVersion = updater.latestVersion();
   QVERIFY(updateAvailable);
   QVERIFY(latestVersion == LATEST_VERSION);
 
   // A second check should not be made because a check has already been made the same day.
   done = false;
-  updater.setFrequency(QtUpdater::Frequency::EveryDay);
+  updater.setFrequency(Frequency::EveryDay);
   updater.checkForUpdate();
   QVERIFY(!done);
 }
 
 void Tests::test_validAppcastUrlButNoServer() {
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   auto done = false;
   auto error = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&done]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&done]() {
     done = true;
   });
 
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFailed, this, [&done, &error]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFailed, this, [&done, &error]() {
     error = true;
     done = true;
   });
@@ -233,7 +264,7 @@ void Tests::test_validAppcastUrlButNoServer() {
   QVERIFY(error);
 
   // Latest version should stay the current one.
-  const auto updateAvailable = updater.updateAvailability() == QtUpdater::UpdateAvailability::Available;
+  const auto updateAvailable = updater.updateAvailability() == UpdateAvailability::Available;
   const auto latestVersion = updater.latestVersion();
   QVERIFY(!updateAvailable);
   QVERIFY(latestVersion == CURRENT_VERSION);
@@ -241,30 +272,24 @@ void Tests::test_validAppcastUrlButNoServer() {
 
 void Tests::test_validAppcastUrlButNoUpdate() {
   // Server.
-  httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    const auto appCast = getAppCast(CURRENT_VERSION);
-    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
-  });
-
-  // Start server in a thread.
-  auto t = std::thread([&server]() {
-    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
-      server.stop();
-      QFAIL("Can't start server");
-    }
-  });
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(CURRENT_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
 
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   auto done = false;
   auto error = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&done]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&done]() {
     done = true;
   });
 
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFailed, this, [&done, &error]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFailed, this, [&done, &error]() {
     error = true;
     done = true;
   });
@@ -272,11 +297,11 @@ void Tests::test_validAppcastUrlButNoUpdate() {
   // Verify that these signals are called (or not) correctly.
   auto updateAvailableChanged = false;
   auto latestVersionChanged = false;
-  QObject::connect(&updater, &QtUpdater::updateAvailabilityChanged, this, [&updateAvailableChanged]() {
+  QObject::connect(&updater, &Updater::updateAvailabilityChanged, this, [&updateAvailableChanged]() {
     // Should be always called.
     updateAvailableChanged = true;
   });
-  QObject::connect(&updater, &QtUpdater::latestVersionChanged, this, [&latestVersionChanged]() {
+  QObject::connect(&updater, &Updater::latestVersionChanged, this, [&latestVersionChanged]() {
     // Should be called only if a (greater) new version exists.
     latestVersionChanged = true;
   });
@@ -292,8 +317,6 @@ void Tests::test_validAppcastUrlButNoUpdate() {
         updater.checkTimeout())) {
     QFAIL("Too late.");
   }
-  server.stop();
-  t.join();
 
   if (error) {
     QFAIL("Can't download latest version JSON");
@@ -301,7 +324,7 @@ void Tests::test_validAppcastUrlButNoUpdate() {
   }
 
   // Latest version should be the current one.
-  const auto updateAvailable = updater.updateAvailability() == QtUpdater::UpdateAvailability::Available;
+  const auto updateAvailable = updater.updateAvailability() == UpdateAvailability::Available;
   const auto latestVersion = updater.latestVersion();
 
   QVERIFY(!updateAvailable);
@@ -312,29 +335,23 @@ void Tests::test_validAppcastUrlButNoUpdate() {
 
 void Tests::test_validChangelogUrl() {
   // Server.
-  httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    const auto appCast = getAppCast(LATEST_VERSION);
-    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
-  });
-  server.Get(CHANGELOG_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    response.set_content(DUMMY_CHANGELOG, CONTENT_TYPE_MD);
-  });
-
-  // Start server in a thread.
-  auto t = std::thread([&server]() {
-    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
-      server.stop();
-      QFAIL("Can't start server");
-    }
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(LATEST_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
+  server.addRoute("/changelog-<arg>", [](const QString&) {
+    return QHttpServerResponse("text/markdown", DUMMY_CHANGELOG);
   });
 
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   // Check for updates.
   auto checked = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
   updater.forceCheckForUpdate();
@@ -346,7 +363,7 @@ void Tests::test_validChangelogUrl() {
     QFAIL("Too late.");
   }
 
-  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
+  if (updater.updateAvailability() != UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
@@ -354,10 +371,10 @@ void Tests::test_validChangelogUrl() {
   // Download changelog.
   auto downloadedChangelog = false;
   auto error = false;
-  QObject::connect(&updater, &QtUpdater::changelogDownloadFinished, this, [&downloadedChangelog]() {
+  QObject::connect(&updater, &Updater::changelogDownloadFinished, this, [&downloadedChangelog]() {
     downloadedChangelog = true;
   });
-  QObject::connect(&updater, &QtUpdater::changelogDownloadFailed, this, [&downloadedChangelog, &error]() {
+  QObject::connect(&updater, &Updater::changelogDownloadFailed, this, [&downloadedChangelog, &error]() {
     error = true;
     downloadedChangelog = true;
   });
@@ -369,8 +386,6 @@ void Tests::test_validChangelogUrl() {
         updater.checkTimeout())) {
     QFAIL("Too late.");
   }
-  server.stop();
-  t.join();
 
   if (error) {
     QFAIL("Can't download changelog");
@@ -385,26 +400,20 @@ void Tests::test_validChangelogUrl() {
 
 void Tests::test_invalidChangelogUrl() {
   // Server.
-  httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    const auto appCast = getAppCast(LATEST_VERSION);
-    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
-  });
-
-  // Start server in a thread.
-  auto t = std::thread([&server]() {
-    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
-      server.stop();
-      QFAIL("Can't start server");
-    }
-  });
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(LATEST_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
 
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   // Check for updates.
   auto checked = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
   updater.forceCheckForUpdate();
@@ -416,7 +425,7 @@ void Tests::test_invalidChangelogUrl() {
     QFAIL("Too late.");
   }
 
-  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
+  if (updater.updateAvailability() != UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
@@ -424,10 +433,10 @@ void Tests::test_invalidChangelogUrl() {
   // Download changelog.
   auto downloadedChangelog = false;
   auto error = false;
-  QObject::connect(&updater, &QtUpdater::changelogDownloadFinished, this, [&downloadedChangelog]() {
+  QObject::connect(&updater, &Updater::changelogDownloadFinished, this, [&downloadedChangelog]() {
     downloadedChangelog = true;
   });
-  QObject::connect(&updater, &QtUpdater::changelogDownloadFailed, this, [&downloadedChangelog, &error]() {
+  QObject::connect(&updater, &Updater::changelogDownloadFailed, this, [&downloadedChangelog, &error]() {
     error = true;
     downloadedChangelog = true;
   });
@@ -439,8 +448,6 @@ void Tests::test_invalidChangelogUrl() {
         updater.checkTimeout())) {
     QFAIL("Too late.");
   }
-  server.stop();
-  t.join();
 
   QVERIFY(error);
 
@@ -453,29 +460,23 @@ void Tests::test_invalidChangelogUrl() {
 
 void Tests::test_validInstallerUrl() {
   // Server.
-  httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    const auto appCast = getAppCast(LATEST_VERSION);
-    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
-  });
-  server.Get(INSTALLER_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    response.set_content(DUMMY_INSTALLER_DATA, CONTENT_TYPE_EXE);
-  });
-
-  // Start server in a thread.
-  auto t = std::thread([&server]() {
-    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
-      server.stop();
-      QFAIL("Can't start server");
-    }
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(LATEST_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
+  server.addRoute("/installer-<arg>", [](const QString&) {
+    return QHttpServerResponse("application/vnd.microsoft.portable-executable", DUMMY_INSTALLER_DATA);
   });
 
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   // Check for updates.
   auto checked = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
   updater.forceCheckForUpdate();
@@ -487,7 +488,7 @@ void Tests::test_validInstallerUrl() {
     QFAIL("Too late.");
   }
 
-  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
+  if (updater.updateAvailability() != UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
@@ -495,10 +496,10 @@ void Tests::test_validInstallerUrl() {
   // Download installer.
   auto downloadFinished = false;
   auto error = false;
-  QObject::connect(&updater, &QtUpdater::installerDownloadFinished, this, [&downloadFinished]() {
+  QObject::connect(&updater, &Updater::installerDownloadFinished, this, [&downloadFinished]() {
     downloadFinished = true;
   });
-  QObject::connect(&updater, &QtUpdater::installerDownloadFailed, this, [&downloadFinished, &error]() {
+  QObject::connect(&updater, &Updater::installerDownloadFailed, this, [&downloadFinished, &error]() {
     error = true;
     downloadFinished = true;
   });
@@ -510,8 +511,6 @@ void Tests::test_validInstallerUrl() {
         updater.checkTimeout())) {
     QFAIL("Too late.");
   }
-  server.stop();
-  t.join();
 
   if (error) {
     QFAIL("Can't download installer");
@@ -524,40 +523,35 @@ void Tests::test_validInstallerUrl() {
   // Install update (synchronous).
   auto installationFailed = false;
   auto installationFinished = false;
-  QObject::connect(&updater, &QtUpdater::installationFinished, this, [&installationFinished]() {
+  QObject::connect(&updater, &Updater::installationFinished, this, [&installationFinished]() {
     installationFinished = true;
   });
-  QObject::connect(&updater, &QtUpdater::installationFailed, this, [&installationFinished, &installationFailed]() {
+  QObject::connect(&updater, &Updater::installationFailed, this, [&installationFinished, &installationFailed]() {
     installationFailed = true;
     installationFinished = true;
   });
   updater.installUpdate(/*dry*/ true);
+
   QVERIFY(installationFinished);
   QVERIFY(!installationFailed);
 }
 
 void Tests::test_invalidInstallerUrl() {
   // Server.
-  httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    const auto appCast = getAppCast(LATEST_VERSION);
-    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
-  });
-
-  // Start server in a thread.
-  auto t = std::thread([&server]() {
-    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
-      server.stop();
-      QFAIL("Can't start server");
-    }
-  });
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(LATEST_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
 
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   // Check for updates.
   auto checked = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
   updater.forceCheckForUpdate();
@@ -565,7 +559,7 @@ void Tests::test_invalidInstallerUrl() {
     QCoreApplication::processEvents();
   }
 
-  if (updater.updateAvailability() != QtUpdater::UpdateAvailability::Available) {
+  if (updater.updateAvailability() != UpdateAvailability::Available) {
     QFAIL("Update should be available before downloading changelog");
     return;
   }
@@ -573,10 +567,10 @@ void Tests::test_invalidInstallerUrl() {
   // Download installer.
   auto downloadFinished = false;
   auto error = false;
-  QObject::connect(&updater, &QtUpdater::installerDownloadFinished, this, [&downloadFinished]() {
+  QObject::connect(&updater, &Updater::installerDownloadFinished, this, [&downloadFinished]() {
     downloadFinished = true;
   });
-  QObject::connect(&updater, &QtUpdater::installerDownloadFailed, this, [&downloadFinished, &error]() {
+  QObject::connect(&updater, &Updater::installerDownloadFailed, this, [&downloadFinished, &error]() {
     error = true;
     downloadFinished = true;
   });
@@ -584,8 +578,6 @@ void Tests::test_invalidInstallerUrl() {
   while (!downloadFinished) {
     QCoreApplication::processEvents();
   }
-  server.stop();
-  t.join();
 
   QVERIFY(error);
 
@@ -595,46 +587,39 @@ void Tests::test_invalidInstallerUrl() {
   // Install update (synchronous).
   auto installationFailed = false;
   auto installationFinished = false;
-  QObject::connect(&updater, &QtUpdater::installationFailed, this, [&installationFailed, &installationFinished]() {
+  QObject::connect(&updater, &Updater::installationFailed, this, [&installationFailed, &installationFinished]() {
     installationFailed = true;
     installationFinished = true;
   });
-  QObject::connect(&updater, &QtUpdater::installationFinished, this, [&installationFinished]() {
+  QObject::connect(&updater, &Updater::installationFinished, this, [&installationFinished]() {
     installationFinished = true;
   });
   updater.installUpdate(/*dry*/ true);
+
   QVERIFY(installationFinished);
   QVERIFY(installationFailed);
 }
 
 void Tests::test_cancel() {
   // Server.
-  httplib::Server server;
-  server.Get(APPCAST_QUERY_REGEX, [](const httplib::Request&, httplib::Response& response) {
-    // Sleep to let some time to cancel the download.
-    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-    const auto appCast = getAppCast(LATEST_VERSION);
-    response.set_content(appCast.toStdString(), CONTENT_TYPE_JSON);
-  });
-
-  // Start server in a thread.
-  auto t = std::thread([&server]() {
-    if (!server.listen(SERVER_HOST, SERVER_PORT)) {
-      server.stop();
-      QFAIL("Can't start server");
-    }
-  });
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(LATEST_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
 
   // Configure updater.
-  QtUpdater updater(SERVER_URL_FOR_CLIENT);
+  Updater updater(SERVER_URL_FOR_CLIENT);
 
   // Check for updates.
   auto checked = false;
   auto cancelled = false;
-  QObject::connect(&updater, &QtUpdater::checkForUpdateFinished, this, [&checked]() {
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&checked]() {
     checked = true;
   });
-  QObject::connect(&updater, &QtUpdater::checkForUpdateCancelled, this, [&cancelled]() {
+  QObject::connect(&updater, &Updater::checkForUpdateCancelled, this, [&cancelled]() {
     cancelled = true;
   });
   updater.forceCheckForUpdate();
@@ -647,8 +632,6 @@ void Tests::test_cancel() {
         updater.checkTimeout())) {
     QFAIL("Too late.");
   }
-  server.stop();
-  t.join();
 
   QVERIFY(cancelled);
 }
