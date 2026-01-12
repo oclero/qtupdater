@@ -1,15 +1,15 @@
 #pragma once
 
+#include <oclero/qtupdater/Updater.h>
+
 #include <QObject>
 #include <QDateTime>
 
-#include <oclero/QtUpdater.hpp>
-
-namespace oclero {
+namespace oclero::qtupdater {
 /**
  * @brief Controller for the Update dialog. Might be used with a QtWidgets-based or QtQuick-based dialog.
  */
-class QtUpdateController : public QObject {
+class Controller : public QObject {
   Q_OBJECT
 
   Q_PROPERTY(State state READ state NOTIFY stateChanged)
@@ -37,8 +37,8 @@ public:
   Q_ENUM(State)
 
 public:
-  explicit QtUpdateController(oclero::QtUpdater& updater, QObject* parent = nullptr);
-  ~QtUpdateController() = default;
+  explicit Controller(Updater& updater, QObject* parent = nullptr);
+  ~Controller() override = default;
 
   State state() const;
   QString currentVersion() const;
@@ -69,16 +69,16 @@ signals:
   void downloadProgressChanged(int);
   void manualCheckingRequested();
   void closeDialogRequested();
-  void checkForUpdateErrorChanged(QtUpdater::ErrorCode code);
-  void changelogDownloadErrorChanged(QtUpdater::ErrorCode code);
-  void updateDownloadErrorChanged(QtUpdater::ErrorCode code);
-  void updateInstallationErrorChanged(QtUpdater::ErrorCode code);
+  void checkForUpdateErrorChanged(oclero::qtupdater::UpdaterError code);
+  void changelogDownloadErrorChanged(oclero::qtupdater::UpdaterError code);
+  void updateDownloadErrorChanged(oclero::qtupdater::UpdaterError code);
+  void updateInstallationErrorChanged(oclero::qtupdater::UpdaterError code);
 
   void linuxDownloadUpdateRequested();
 
 private:
-  oclero::QtUpdater& _updater;
+  Updater& _updater;
   State _state{ State::None };
   int _downloadProgress{ 0 };
 };
-} // namespace oclero
+} // namespace oclero::qtupdater

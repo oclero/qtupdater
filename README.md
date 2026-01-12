@@ -5,11 +5,11 @@
 # QtUpdater
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://mit-license.org/)
-[![CMake version](https://img.shields.io/badge/CMake-3.19+-064F8C?logo=cmake)](https://www.qt.io)
+[![CMake version](https://img.shields.io/badge/CMake-3.21+-064F8C?logo=cmake)](https://www.qt.io)
 [![C++ version](https://img.shields.io/badge/C++-17-00599C?logo=++)](https://www.qt.io)
-[![Qt version](https://img.shields.io/badge/Qt-5.15.2+-41CD52?logo=qt)](https://www.qt.io)
+[![Qt version](https://img.shields.io/badge/Qt-6.0+-41CD52?logo=qt)](https://www.qt.io)
 
-Updater for Qt5 (auto-updates).
+Updater for Qt6 (auto-updates).
 
 ---
 
@@ -28,17 +28,15 @@ Updater for Qt5 (auto-updates).
 ## Requirements
 
 - Platform: Windows, MacOS, Linux (except for installer auto-start).
-- [CMake 3.19+](https://cmake.org/download/)
-- [Qt 5.15+](https://www.qt.io/download-qt-installer)
-- [cpphttplib](https://github.com/yhirose/cpp-httplib) (Only for unit tests)
+- [CMake 3.21+](https://cmake.org/download/)
+- [Qt 6.0+](https://www.qt.io/download-qt-installer)
 
 ## Features
 
 This library contains:
 
-- A core: `QtUpdater`
-- A controller: `QtUpdateController`, that may be use with QtWidgets or QtQuick/QML.
-- A widget: `QtUpdateWidget`, that may be used as a `QWidget` or inside a `QDialog`.
+- A core: `oclero::qtupdater::Updater`.
+- A controller: `oclero::qtupdater::Controller`, that may be use with QtWidgets or QtQuick/QML.
 
 It provides these features:
 
@@ -51,14 +49,10 @@ It provides these features:
 
 ## Usage
 
-1. Add the library as a dependency with CMake FetchContent.
+1. Add the library as a dependency with CMake.
 
    ```cmake
-   include(FetchContent)
-   FetchContent_Declare(QtUpdater
-    GIT_REPOSITORY "https://github.com/oclero/qtupdater.git"
-   )
-   FetchContent_MakeAvailable(QtUpdater)
+   find_package(QtUpdater REQUIRED)
    ```
 
 2. Link with the library in CMake.
@@ -70,8 +64,10 @@ It provides these features:
 3. Include the only necessary header in your C++ file.
 
    ```c++
-   #include <oclero/QtUpdater.hpp>
+   #include <oclero/qtupdater/Updater.h>
    ```
+
+4. Use the `oclero::qtupdater::Updater` class to check for updates, download changelog and installer, and execute the installer. See the [Client Example](#client) section for more details.
 
 ## Server Specifications
 
@@ -79,10 +75,10 @@ It provides these features:
 
 The protocol is the following:
 
-1. The client sends a request to the endpoint URL of your choice. Example (with curl):
+1. The client sends a GET request to the endpoint URL of your choice. Example (with curl):
 
    ```bash
-   curl http://server/endpoint?version=latest
+   curl http://server/endpoint\?version\=latest
    ```
 
 2. The server answers by sending back an _appcast_: a JSON file containing the necessary information. The _appcast_ must look like the following:
@@ -108,51 +104,34 @@ The protocol is the following:
 
 ## Example
 
-### Server
-
-A _very basic_ server written in Python is included as testing purposes. Don't use in production environment!
-
-```bash
-# Start with default config.
-python examples/dev_server/main.py
-
-# ... Or set your own config.
-python examples/dev_server/main.py --dir /some-directory --port 8000 --address 127.0.0.1
-```
-
-Some examples of valid requests for this server:
-
-```bash
-# The client must be able to retrieve the latest version.
-curl http://localhost:8000?version=latest
-
-# This is equivalent to getting the latest version.
-curl http://localhost:8000
-
-# If the following version exist, the request is valid.
-curl http://localhost:8000?version=1.2.3
-
-# If the file exist, the request is valid.
-curl http://localhost:8000/v1.1.0.exe
-```
-
 ### Client
 
+Usage is straightforward:
+
 ```c++
+using namespace oclero::qtupdater;
+
 // Create an updater.
-oclero::QtUpdater updater("https://server/endpoint");
+Updater updater("https://server/endpoint");
 
 // Subscribe to all necessary signals. See documentation for complete list.
-QObject::connect(&updater, &oclero::QtUpdater::updateAvailabilityChanged,
+QObject::connect(&updater, &Updater::updateAvailabilityChanged,
                  &updater, [&updater]() {
-  if (updater.updateAvailability() == oclero::QtUpdater::UpdateAvailable::Available) {
-    qDebug() << "Update available! You have: "
+  if (updater.updateAvailability() == UpdateAvailability::Available) {
+    // An update is available!
+    qDebug() << "Update available!"
+      << " - You have: "
       << qPrintable(updater.currentVersion())
       << " - Latest is: "
       << qPrintable(updater.latestVersion());
-  } else if (updater.updateAvailability() == oclero::QtUpdater::UpdateAvailable::UpToDate) {
+
+  } else if (updater.updateAvailability() == UpdateAvailability::UpToDate) {
+    // You have the latest version.
     qDebug() << "You have the latest version.";
+
   } else {
+    // An error occurred.
+    // Subscribe to checkForUpdateFailed() signal for more details.
     qDebug() << "Error.";
   }
 });
@@ -160,6 +139,70 @@ QObject::connect(&updater, &oclero::QtUpdater::updateAvailabilityChanged,
 // Start checking.
 updater.checkForUpdate();
 ```
+
+If you server does not provide a JSON in the expected format, you can use a custom parser:
+
+```c++
+updater.setAppCastParser([](const QByteArray& data) -> oclero::qtupdater::AppCast {
+  // Your custom parsing code here.
+});
+```
+
+When an update is available, you can download the changelog and installer:
+
+```c++
+// See signals changelogAvailableChanged() and installerAvailableChanged().
+updater.downloadInstaller();
+```
+
+You can then execute the installer:
+
+```c++
+// This will start the installer and quit the application if necessary.
+updater.installUpdate();
+```
+
+### Server
+
+A _very basic_ development server written in Python is included as testing purposes during development. Don't use in production environment!
+
+- It does not implement any security mechanism, nor HTTPS.
+- It does not cache anything and reads files from disk on each request.
+
+#### Setup
+
+```bash
+# Start with default config.
+cd examples/dev_server
+pip install -r requirements.txt
+python main.py
+
+# ... Or set your own config.
+python main.py --dir /some-directory --port 8000 --address 127.0.0.1
+```
+
+#### File Structure
+
+This development server expects files in the following format:
+
+```txt
+public/
+  v1.0.0.json      # Version metadata
+  v1.0.0.exe       # Windows installer (or .dmg for macOS)
+  v1.0.0.md        # Changelog
+  v1.1.0.json
+  v1.1.0.exe
+  v1.1.0.md
+  # etc.
+```
+
+#### API
+
+- `GET /?version=latest` - Get latest version JSON.
+- `GET /` - Same as above.
+- `GET /?version=1.0.0` - Get specific version JSON.
+- `GET /v1.0.0.exe` - Download installer.
+- `GET /v1.0.0.md` - Download changelog.
 
 ## Author
 

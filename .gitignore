@@ -44,6 +44,7 @@ CMakeLists.txt.user
 *creator.user*
 *.qml.autosave
 debug.log
+.qtcreator/
 
 # Temporary files.
 tmp/

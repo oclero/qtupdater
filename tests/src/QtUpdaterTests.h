@@ -23,4 +23,6 @@ private slots:
   void test_invalidInstallerUrl();
 
   void test_cancel();
+
+  void test_customAppCastParser();
 };

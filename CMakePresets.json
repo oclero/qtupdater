@@ -13,7 +13,7 @@
       "generator": "Xcode",
       "binaryDir": "${sourceDir}/_build",
       "cacheVariables": {
-        "Qt5_DIR": "/opt/homebrew/opt/qt/lib/cmake/Qt5"
+        "Qt6_DIR": "/opt/homebrew/opt/qt/lib/cmake/Qt6"
       },
       "condition": {
         "type": "equals",
@@ -28,7 +28,7 @@
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/_build",
       "cacheVariables": {
-        "Qt5_DIR": "C:/Qt/5.15.2/msvc2019_64/lib/cmake/Qt5"
+        "Qt6_DIR": "C:/Qt/6.10.1/msvc2022_64/lib/cmake/Qt6"
       },
       "condition": {
         "type": "equals",
@@ -139,8 +139,7 @@
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "rerun-failed": true
+        "stopOnFailure": false
       },
       "condition": {
         "type": "equals",
@@ -157,8 +156,7 @@
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "rerun-failed": true
+        "stopOnFailure": false
       },
       "condition": {
         "type": "equals",
@@ -175,8 +173,7 @@
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": false,
-        "rerun-failed": true
+        "stopOnFailure": false
       },
       "condition": {
         "type": "equals",

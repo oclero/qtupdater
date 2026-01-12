@@ -2,7 +2,7 @@
 #include <QDebug>
 #include <QStandardPaths>
 
-#include <oclero/QtUpdater.hpp>
+#include <oclero/qtupdater/Updater.h>
 
 int main(int argc, char* argv[]) {
   QCoreApplication::setApplicationName("BasicUpdaterExample");
@@ -10,13 +10,13 @@ int main(int argc, char* argv[]) {
   QCoreApplication::setOrganizationName("example");
   QCoreApplication app(argc, argv);
 
-  oclero::QtUpdater updater;
+  oclero::qtupdater::Updater updater;
   updater.setServerUrl("http://localhost:8000/");
-  updater.setInstallerDestinationDir(QStandardPaths::standardLocations(QStandardPaths::DownloadLocation).first());
-  updater.setInstallMode(oclero::QtUpdater::InstallMode::MoveFileToDir);
+  updater.setInstallerDestinationDir(QStandardPaths::standardLocations(QStandardPaths::DownloadLocation).constFirst());
+  updater.setInstallMode(oclero::qtupdater::InstallMode::MoveFileToDir);
 
-  QObject::connect(&updater, &oclero::QtUpdater::updateAvailabilityChanged, &updater, [&updater]() {
-    if (updater.updateAvailability() == oclero::QtUpdater::UpdateAvailability::Available) {
+  QObject::connect(&updater, &oclero::qtupdater::Updater::updateAvailabilityChanged, &updater, [&updater]() {
+    if (updater.updateAvailability() == oclero::qtupdater::UpdateAvailability::Available) {
       qDebug() << "Update available! You have " << qPrintable(updater.currentVersion()) << " - Latest is "
                << qPrintable(updater.latestVersion());
 
@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
     }
   });
 
-  QObject::connect(&updater, &oclero::QtUpdater::changelogAvailableChanged, &updater, [&updater]() {
+  QObject::connect(&updater, &oclero::qtupdater::Updater::changelogAvailableChanged, &updater, [&updater]() {
     if (updater.changelogAvailable()) {
       qDebug() << "Changelog downloaded!\nHere's what's new:";
       qDebug() << updater.latestChangelog();
@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
     }
   });
 
-  QObject::connect(&updater, &oclero::QtUpdater::installerAvailableChanged, &updater, [&updater]() {
+  QObject::connect(&updater, &oclero::qtupdater::Updater::installerAvailableChanged, &updater, [&updater]() {
     if (updater.installerAvailable()) {
       qDebug() << "Installer downloaded!";
 
@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
     }
   });
 
-  QObject::connect(&updater, &oclero::QtUpdater::installationFinished, &updater, []() {
+  QObject::connect(&updater, &oclero::qtupdater::Updater::installationFinished, &updater, []() {
     qDebug() << "Installation done!";
   });
 
