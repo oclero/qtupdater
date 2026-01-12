@@ -7,6 +7,7 @@ find_package(Qt6
 )
 
 set(HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/qtupdater/AppCast.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/qtupdater/Downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/qtupdater/Controller.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/oclero/qtupdater/Types.h
@@ -15,7 +16,6 @@ set(HEADERS
 
 set(SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/oclero/qtupdater/AppCast.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/oclero/qtupdater/AppCast.h
   ${CMAKE_CURRENT_SOURCE_DIR}/source/oclero/qtupdater/Downloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/source/oclero/qtupdater/Controller.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/source/oclero/qtupdater/Types.cpp

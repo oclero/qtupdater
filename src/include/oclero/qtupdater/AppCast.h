@@ -8,7 +8,6 @@
 #include <QDateTime>
 
 #include <optional>
-#include <functional>
 
 namespace oclero::qtupdater {
 struct AppCast {
@@ -19,11 +18,11 @@ struct AppCast {
   ChecksumType checksumType{ ChecksumType::NoChecksum };
   QDateTime date;
 
-  void fromJson(const QByteArray& data, const std::function<QJsonObject(const QJsonDocument&)>& customParser = nullptr);
-  void fromJsonObject(const QJsonObject& jsonObject);
-
   bool isValid() const;
   QByteArray toJSON() const;
   std::optional<QString> saveToFile(const QString& dirPath) const;
+
+  static AppCast fromJson(const QByteArray& data);
+  static AppCast fromJsonObject(const QJsonObject& jsonObject);
 };
 } // namespace oclero::qtupdater

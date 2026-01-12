@@ -635,3 +635,48 @@ void Tests::test_cancel() {
 
   QVERIFY(cancelled);
 }
+
+void Tests::test_customAppCastParser() {
+  // Server.
+  TestHttpServer server;
+  if (!server.route("/", []() {
+        const auto appCast = getAppCastStr(LATEST_VERSION);
+        return QHttpServerResponse("application/json", appCast.toUtf8());
+      })) {
+    QFAIL("Can't start server");
+  }
+
+  // Configure updater.
+  Updater updater(SERVER_URL_FOR_CLIENT);
+  updater.setAppCastParser([](const QByteArray& data) -> AppCast {
+    // Custom parser that just calls the default one.
+    return AppCast::fromJson(data);
+  });
+
+  auto done = false;
+  auto error = false;
+  QObject::connect(&updater, &Updater::checkForUpdateFinished, this, [&done]() {
+    done = true;
+  });
+  QObject::connect(&updater, &Updater::checkForUpdateFailed, this, [&done, &error]() {
+    error = true;
+    done = true;
+  });
+
+  // Start checking.
+  updater.forceCheckForUpdate();
+
+  // Wait for the client to receive the response from the server.
+  if (!QTest::qWaitFor(
+        [&done]() {
+          return done;
+        },
+        updater.checkTimeout())) {
+    QFAIL("Too late.");
+  }
+
+  if (error) {
+    QFAIL("Can't download latest version JSON");
+    return;
+  }
+}

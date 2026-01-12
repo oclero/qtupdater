@@ -1,15 +1,15 @@
 #pragma once
 
+#include <oclero/qtupdater/AppCast.h>
 #include <oclero/qtupdater/Types.h>
 
 #include <QObject>
 #include <QString>
 #include <QDateTime>
 #include <QSettings>
-#include <QJsonObject>
-#include <QJsonDocument>
 
 #include <memory>
+#include <functional>
 
 namespace oclero::qtupdater {
 /**
@@ -44,21 +44,21 @@ public:
 
 public:
   /**
-   * @brief Set the Custom Json Parser object. By default, the parser expects a JSON object with the
+   * @brief Set the custom data parser. By default, the parser expects a JSON object with the
    * following structure:
    * {
    * "latestVersion": "1.2.3",
    * "latestVersionDate": "2023-01-01T12:00:00Z",
-   * "changelog": "Changelog text here",
+   * "changelogUrl": "https://example.com/changelog.md",
    * "installerUrl": "https://example.com/installer.exe",
    * }
    *
-   * If your server returns a different structure, you can provide a custom parser function to extract
+   * If your server returns different data, you can provide a custom parser function to extract
    * the necessary information.
    *
-   * @param customParser A function that takes a QJsonDocument and returns a QJsonObject with the expected structure.
+   * @param parser A function that takes a QByteArray and returns an AppCast..
    */
-  void setCustomJsonParser(const std::function<QJsonObject(const QJsonDocument&)>& customParser);
+  void setAppCastParser(const std::function<AppCast(const QByteArray&)>& parser);
 
   const QString& temporaryDirectoryPath() const;
   void setTemporaryDirectoryPath(const QString& path);

@@ -67,6 +67,8 @@ It provides these features:
    #include <oclero/qtupdater/Updater.h>
    ```
 
+4. Use the `oclero::qtupdater::Updater` class to check for updates, download changelog and installer, and execute the installer. See the [Client Example](#client) section for more details.
+
 ## Server Specifications
 
 ### Protocol
@@ -101,6 +103,64 @@ The protocol is the following:
    - It may also move the downloaded file to some location.
 
 ## Example
+
+### Client
+
+Usage is straightforward:
+
+```c++
+using namespace oclero::qtupdater;
+
+// Create an updater.
+Updater updater("https://server/endpoint");
+
+// Subscribe to all necessary signals. See documentation for complete list.
+QObject::connect(&updater, &Updater::updateAvailabilityChanged,
+                 &updater, [&updater]() {
+  if (updater.updateAvailability() == UpdateAvailability::Available) {
+    // An update is available!
+    qDebug() << "Update available!"
+      << " - You have: "
+      << qPrintable(updater.currentVersion())
+      << " - Latest is: "
+      << qPrintable(updater.latestVersion());
+
+  } else if (updater.updateAvailability() == UpdateAvailability::UpToDate) {
+    // You have the latest version.
+    qDebug() << "You have the latest version.";
+
+  } else {
+    // An error occurred.
+    // Subscribe to checkForUpdateFailed() signal for more details.
+    qDebug() << "Error.";
+  }
+});
+
+// Start checking.
+updater.checkForUpdate();
+```
+
+If you server does not provide a JSON in the expected format, you can use a custom parser:
+
+```c++
+updater.setAppCastParser([](const QByteArray& data) -> oclero::qtupdater::AppCast {
+  // Your custom parsing code here.
+});
+```
+
+When an update is available, you can download the changelog and installer:
+
+```c++
+// See signals changelogAvailableChanged() and installerAvailableChanged().
+updater.downloadInstaller();
+```
+
+You can then execute the installer:
+
+```c++
+// This will start the installer and quit the application if necessary.
+updater.installUpdate();
+```
 
 ### Server
 
@@ -143,31 +203,6 @@ public/
 - `GET /?version=1.0.0` - Get specific version JSON.
 - `GET /v1.0.0.exe` - Download installer.
 - `GET /v1.0.0.md` - Download changelog.
-
-### Client
-
-```c++
-// Create an updater.
-oclero::qtupdater::Updater updater("https://server/endpoint");
-
-// Subscribe to all necessary signals. See documentation for complete list.
-QObject::connect(&updater, &oclero::qtupdater::Updater::updateAvailabilityChanged,
-                 &updater, [&updater]() {
-  if (updater.updateAvailability() == oclero::qtupdater::UpdateAvailability::Available) {
-    qDebug() << "Update available! You have: "
-      << qPrintable(updater.currentVersion())
-      << " - Latest is: "
-      << qPrintable(updater.latestVersion());
-  } else if (updater.updateAvailability() == oclero::qtupdater::UpdateAvailability::UpToDate) {
-    qDebug() << "You have the latest version.";
-  } else {
-    qDebug() << "Error.";
-  }
-});
-
-// Start checking.
-updater.checkForUpdate();
-```
 
 ## Author
 

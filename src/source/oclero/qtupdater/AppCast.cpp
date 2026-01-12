@@ -1,4 +1,4 @@
-#include "AppCast.h"
+#include <oclero/qtupdater/AppCast.h>
 
 #include "utils/EnumUtils.h"
 
@@ -18,45 +18,49 @@ constexpr auto JSON_TAG_INSTALLER_URL = "installerUrl";
 constexpr auto JSON_TAG_CHANGELOG_URL = "changelogUrl";
 constexpr auto JSON_TAG_VERSION = "version";
 
-void AppCast::fromJson(const QByteArray& data, const std::function<QJsonObject(const QJsonDocument&)>& customParser) {
+AppCast AppCast::fromJson(const QByteArray& data) {
+  AppCast result;
   const auto jsonDocument = QJsonDocument::fromJson(data);
   if (!jsonDocument.isNull()) {
-    if (customParser) {
-      const auto jsonObject = customParser(jsonDocument);
-      fromJsonObject(jsonObject);
-    } else if (jsonDocument.isObject()) {
+    if (jsonDocument.isObject()) {
       const auto jsonObject = jsonDocument.object();
-      fromJsonObject(jsonObject);
+      result = fromJsonObject(jsonObject);
     }
   }
+  return result;
 }
 
-void AppCast::fromJsonObject(const QJsonObject& jsonObject) {
+AppCast AppCast::fromJsonObject(const QJsonObject& jsonObject) {
+  AppCast result;
+
   if (!jsonObject.isEmpty()) {
     if (jsonObject.contains(JSON_TAG_VERSION)) {
-      version = QVersionNumber::fromString(jsonObject[JSON_TAG_VERSION].toString());
+      result.version = QVersionNumber::fromString(jsonObject[JSON_TAG_VERSION].toString());
     }
 
     if (jsonObject.contains(JSON_TAG_CHANGELOG_URL)) {
-      changelogUrl = QUrl(jsonObject[JSON_TAG_CHANGELOG_URL].toString());
+      result.changelogUrl = QUrl(jsonObject[JSON_TAG_CHANGELOG_URL].toString());
     }
 
     if (jsonObject.contains(JSON_TAG_INSTALLER_URL)) {
-      installerUrl = QUrl(jsonObject[JSON_TAG_INSTALLER_URL].toString());
+      result.installerUrl = QUrl(jsonObject[JSON_TAG_INSTALLER_URL].toString());
     }
 
     if (jsonObject.contains(JSON_TAG_CHECKSUM)) {
-      checksum = jsonObject[JSON_TAG_CHECKSUM].toString().toUtf8();
+      result.checksum = jsonObject[JSON_TAG_CHECKSUM].toString().toUtf8();
     }
 
     if (jsonObject.contains(JSON_TAG_CHECKSUM_TYPE)) {
-      checksumType = utils::enumFromString<ChecksumType>(jsonObject[JSON_TAG_CHECKSUM_TYPE].toString().toUpper());
+      result.checksumType =
+        utils::enumFromString<ChecksumType>(jsonObject[JSON_TAG_CHECKSUM_TYPE].toString().toUpper());
     }
 
     if (jsonObject.contains(JSON_TAG_DATE)) {
-      date = QDateTime::fromString(jsonObject[JSON_TAG_DATE].toString(), JSON_DATETIME_FORMAT);
+      result.date = QDateTime::fromString(jsonObject[JSON_TAG_DATE].toString(), JSON_DATETIME_FORMAT);
     }
   }
+
+  return result;
 }
 
 bool AppCast::isValid() const {

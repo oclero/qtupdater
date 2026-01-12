@@ -84,7 +84,7 @@ struct Updater::Impl {
   QDateTime currentVersionDate;
   InstallMode installMode{ InstallMode::ExecuteFile };
   QString installerDestinationDir;
-  std::function<QJsonObject(const QJsonDocument&)> customParser{ nullptr };
+  std::function<AppCast(const QByteArray&)> appCastParser{ nullptr };
 
   Impl(Updater& o, const SettingsParameters& p = {})
     : owner(o)
@@ -273,9 +273,8 @@ struct Updater::Impl {
     }
 
     // Save online info.
-    auto downloadedAppCast = AppCast{};
-    downloadedAppCast.fromJson(data, customParser);
-    onlineUpdateInfo = UpdateInfo{ downloadedAppCast, {}, {}, {} };
+    const auto appCast = appCastParser ? appCastParser(data) : AppCast::fromJson(data);
+    onlineUpdateInfo = UpdateInfo{ appCast, {}, {}, {} };
 
     // Check for previously downloaded update, locally.
 #if UPDATER_ENABLE_DEBUG
@@ -404,8 +403,8 @@ Updater::Updater(const QString& serverUrl, const SettingsParameters& settingsPar
 
 Updater::~Updater() {}
 
-void Updater::setCustomJsonParser(const std::function<QJsonObject(const QJsonDocument&)>& customParser) {
-  _impl->customParser = customParser;
+void Updater::setAppCastParser(const std::function<AppCast(const QByteArray&)>& appCastParser) {
+  _impl->appCastParser = appCastParser;
 }
 
 const QString& Updater::temporaryDirectoryPath() const {
