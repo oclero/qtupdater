@@ -2,19 +2,21 @@
 
 ## v2.0.0
 
-- Port to Qt6.
+- Port to Qt6. Remove support for Qt5.
 - Rename namespace and classes.
   - Namespace is now `oclero::qtupdater`.
   - `QtUpdater` class is now `Updater`.
   - `QtUpdateController` class is now `Controller`.
   - `QtDownloader` class is now `Downloader`.
+  - `UpdateJSON` class is now public and renamed `AppCast`.
   - Move types to `Types.h`.
-- Get rid of QtUtils dependency.
-- Use CMake install directories variables.
+  - Move utilities to `utils/`.
+- Get rid of QtUtils dependency thanks to new Qt6 features.
 - Use QtHttpServer for tests instead of httplib.
+- The library is now installable.
 - Update CI to use Qt6.
 - Various small API improvements and fixes.
-- Add `Updater::setCustomJsonParser` to allow custom JSON parsing.
+- Add `Updater::setAppCastParser` to allow custom data parsing.
 
 ## v1.5.0
 
