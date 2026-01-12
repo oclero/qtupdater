@@ -6,8 +6,15 @@ find_package(Qt6
     Core
     Network
     Test
-    HttpServer
 )
+
+# HttpServer is only available in Qt >= 6.4.
+find_package(Qt6 COMPONENTS HttpServer QUIET)
+
+if(NOT Qt6HttpServer_FOUND)
+  message(WARNING "Qt6HttpServer not found. Tests will be skipped.")
+  return()
+endif()
 
 set(TESTS_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
@@ -41,5 +48,3 @@ add_test(NAME ${TESTS_TARGET_NAME}
   WORKING_DIRECTORY $<TARGET_FILE_DIR:${TESTS_TARGET_NAME}>)
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${TESTS_SOURCES})
-
-# target_deploy_qt(${TESTS_TARGET_NAME})

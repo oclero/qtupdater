@@ -23,7 +23,15 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Find Qt.
 find_package(Qt6 REQUIRED COMPONENTS Core Network)
-qt_standard_project_setup()
+
+# qt_standard_project_setup() is only available in Qt >= 6.3.
+if(COMMAND qt_standard_project_setup)
+  qt_standard_project_setup()
+else()
+  set(CMAKE_AUTOMOC ON)
+  set(CMAKE_AUTOUIC ON)
+  set(CMAKE_AUTORCC ON)
+endif()
 
 # The library.
 add_subdirectory(src)
