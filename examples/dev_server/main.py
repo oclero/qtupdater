@@ -1,60 +1,86 @@
 #!/usr/bin/env python3
+"""Development server for testing Qt auto-update functionality."""
 
 from http.server import HTTPServer
-from server import Server
+from pathlib import Path
 import logging
 import argparse
-import os
 import sys
 
-DEFAULT_HOST_NAME = 'localhost'
-DEFAULT_PORT_NUMBER = 8000
-DEFAULT_ROOT_DIR = os.path.realpath(os.path.dirname(os.path.realpath(__file__)) + '/public/')
+from server import Server
 
-if __name__ == '__main__':
-  # Configure logging.
-  log_filepath = os.path.dirname(os.path.realpath(__file__)) + '/server.log'
-  if os.path.exists(log_filepath):
-    os.remove(log_filepath)
+DEFAULT_HOST = 'localhost'
+DEFAULT_PORT = 8000
+DEFAULT_ROOT_DIR = Path(__file__).parent / 'public'
+
+
+def setup_logging() -> None:
+  """Configure logging to both file and console."""
+  log_file = Path(__file__).parent / 'server.log'
+  log_file.unlink(missing_ok=True)
+
   logging.basicConfig(
-    level=logging.DEBUG,
-    format="[%(asctime)s] [%(levelname)s] %(message)s",
-    handlers=[
-      logging.FileHandler(log_filepath),
-      logging.StreamHandler()
-    ]
+      level=logging.DEBUG,
+      format="[%(asctime)s] [%(levelname)s] %(message)s",
+      handlers=[
+          logging.FileHandler(log_file),
+          logging.StreamHandler()
+      ]
   )
 
-  # Parse arguments.
-  parser = argparse.ArgumentParser(description='Basic auto-update server for development purposes')
-  parser.add_argument('--dir', type=str, help='Directory where the update files are.')
-  parser.add_argument('--port', type=int, help='Port number.')
-  parser.add_argument('--address', type=str, help='Address.')
-  args = parser.parse_args()
 
-  if args.dir is not None and len(args.dir) > 0 and not os.path.isdir(args.dir):
-    logging.debug('Root directory does not exist')
-    sys.exit()
+def parse_arguments() -> argparse.Namespace:
+  """Parse command-line arguments."""
+  parser = argparse.ArgumentParser(
+      description='Basic auto-update server for development purposes'
+  )
+  parser.add_argument(
+      '--dir',
+      type=Path,
+      default=DEFAULT_ROOT_DIR,
+      help='Directory where the update files are located'
+  )
+  parser.add_argument(
+      '--port',
+      type=int,
+      default=DEFAULT_PORT,
+      help='Port number'
+  )
+  parser.add_argument(
+      '--address',
+      type=str,
+      default=DEFAULT_HOST,
+      help='Server address'
+  )
+  return parser.parse_args()
 
-  host_name = DEFAULT_HOST_NAME
-  port_number = DEFAULT_PORT_NUMBER
-  root_dir = DEFAULT_ROOT_DIR
-  if args.port is not None:
-    port_number = args.port
-  if args.address is not None:
-    host_name = args.address
-  if args.dir is not None and len(args.dir) > 0:
-    root_dir = os.path.realpath(args.dir)
+
+def main() -> None:
+  """Main entry point for the development server."""
+  setup_logging()
+  args = parse_arguments()
+
+  # Validate root directory.
+  root_dir = args.dir.resolve()
+  if not root_dir.is_dir():
+    logging.error(f'Root directory does not exist: {root_dir}')
+    sys.exit(1)
 
   # Start server.
-  Server.root_dir = root_dir
-  httpd = HTTPServer((host_name, port_number), Server)
-  logging.debug('Server started @ \'%s:%s\' \'%s\'' % (host_name, port_number, Server.root_dir))
+  Server.root_dir = str(root_dir)
+  server_address = (args.address, args.port)
+  httpd = HTTPServer(server_address, Server)
+  logging.info(
+    f'Server started @ http://{args.address}:{args.port} serving {root_dir}')
 
   try:
     httpd.serve_forever()
   except KeyboardInterrupt:
-    print('')
+    print('\nShutting down...')
+  finally:
+    httpd.server_close()
+    logging.info('Server stopped')
 
-  httpd.server_close()
-  logging.debug('Server stopped')
+
+if __name__ == '__main__':
+  main()

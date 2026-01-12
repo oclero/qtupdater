@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.0.0
+
+- Port to Qt6.
+- Rename namespace and classes.
+  - Namespace is now `oclero::qtupdater`.
+  - `QtUpdater` class is now `Updater`.
+  - `QtUpdateController` class is now `Controller`.
+  - `QtDownloader` class is now `Downloader`.
+  - Move types to `Types.h`.
+- Get rid of QtUtils dependency.
+- Use CMake install directories variables.
+- Use QtHttpServer for tests instead of httplib.
+- Update CI to use Qt6.
+- Various small API improvements and fixes.
+- Add `Updater::setCustomJsonParser` to allow custom JSON parsing.
+
 ## v1.5.0
 
 - Rename `lib` folder into `src`, and `src` subfolder into `source`.

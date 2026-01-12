@@ -1,6 +1,6 @@
-#include "QtUpdateWidget.hpp"
+#include "QtUpdateWidget.h"
 
-#include <oclero/QtUpdateController.hpp>
+#include <oclero/qtupdater/Controller.h>
 
 #include <QAction>
 #include <QBoxLayout>
@@ -15,7 +15,7 @@
 #include <QDateTime>
 #include <QTextEdit>
 
-namespace oclero {
+namespace oclero::qtupdater {
 namespace {
 QString toBold(const QString& str) {
   return QString("<b>%1</b>").arg(str);
@@ -28,7 +28,7 @@ QString dateToString(const QDateTime& date) {
 
 class StartPage : public QWidget {
 public:
-  StartPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  StartPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -90,7 +90,7 @@ private:
 
 class CheckingPage : public QWidget {
 public:
-  CheckingPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  CheckingPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -143,7 +143,7 @@ public:
 
 class CheckingFailPage : public QWidget {
 public:
-  CheckingFailPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  CheckingFailPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -186,18 +186,17 @@ public:
     });
 
     // Connections to controller.
-    QObject::connect(
-      &controller, &QtUpdateController::checkForUpdateErrorChanged, this, [errorLabel](QtUpdater::ErrorCode error) {
-        const auto errorStr = QString::number(static_cast<int>(error));
-        const auto text = tr("Error code: %1").arg(errorStr);
-        errorLabel->setText(text);
-      });
+    QObject::connect(&controller, &Controller::checkForUpdateErrorChanged, this, [errorLabel](UpdaterError error) {
+      const auto errorStr = QString::number(static_cast<int>(error));
+      const auto text = tr("Error code: %1").arg(errorStr);
+      errorLabel->setText(text);
+    });
   }
 };
 
 class CheckingUpToDatePage : public QWidget {
 public:
-  CheckingUpToDatePage(QtUpdateController& controller, QWidget* parent = nullptr)
+  CheckingUpToDatePage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -238,7 +237,7 @@ public:
 
 class CheckingSuccessPage : public QWidget {
 public:
-  CheckingSuccessPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  CheckingSuccessPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent)
     , _controller(controller) {
     auto* layout = new QVBoxLayout(this);
@@ -290,24 +289,23 @@ public:
     });
 
     // Connections to controller.
-    QObject::connect(&controller, &QtUpdateController::latestVersionChanged, this, [this]() {
+    QObject::connect(&controller, &Controller::latestVersionChanged, this, [this]() {
       updateLabelText();
     });
-    QObject::connect(&controller, &QtUpdateController::latestVersionDateChanged, this, [this]() {
+    QObject::connect(&controller, &Controller::latestVersionDateChanged, this, [this]() {
       updateLabelText();
     });
-    QObject::connect(&controller, &QtUpdateController::latestVersionChangelogChanged, this, [this, textEdit]() {
+    QObject::connect(&controller, &Controller::latestVersionChangelogChanged, this, [this, textEdit]() {
       textEdit->setMarkdown(_controller.latestVersionChangelog());
     });
 
     // Connections to controller.
-    QObject::connect(
-      &controller, &QtUpdateController::changelogDownloadErrorChanged, this, [textEdit](QtUpdater::ErrorCode error) {
-        const auto firstLine = tr("Can't download changelog.");
-        const auto errorStr = QString::number(static_cast<int>(error));
-        const auto text = tr("Error code: %1").arg(errorStr);
-        textEdit->setText(firstLine + '\n' + text);
-      });
+    QObject::connect(&controller, &Controller::changelogDownloadErrorChanged, this, [textEdit](UpdaterError error) {
+      const auto firstLine = tr("Can't download changelog.");
+      const auto errorStr = QString::number(static_cast<int>(error));
+      const auto text = tr("Error code: %1").arg(errorStr);
+      textEdit->setText(firstLine + '\n' + text);
+    });
   }
 
 private:
@@ -318,20 +316,17 @@ private:
     const auto latestVersionDate = dateToString(_controller.latestVersionDate());
     const auto text =
       QString("You have version <b>%1</b> (released on %2).<br/>Version <b>%3</b> is available (released on %4).")
-        .arg(currentVersion)
-        .arg(currentVersionDate)
-        .arg(latestVersion)
-        .arg(latestVersionDate);
+        .arg(currentVersion, currentVersionDate, latestVersion, latestVersionDate);
     _label->setText(text);
   }
 
   QLabel* _label;
-  QtUpdateController& _controller;
+  Controller& _controller;
 };
 
 class DownloadingPage : public QWidget {
 public:
-  DownloadingPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  DownloadingPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -386,17 +381,16 @@ public:
     });
 
     // Connections to controller.
-    QObject::connect(
-      &controller, &QtUpdateController::downloadProgressChanged, this, [progressBar, progressLabel](int value) {
-        progressBar->setValue(value);
-        progressLabel->setText(QString("%1%").arg(value));
-      });
+    QObject::connect(&controller, &Controller::downloadProgressChanged, this, [progressBar, progressLabel](int value) {
+      progressBar->setValue(value);
+      progressLabel->setText(QString("%1%").arg(value));
+    });
   }
 };
 
 class DownloadingFailPage : public QWidget {
 public:
-  DownloadingFailPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  DownloadingFailPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -439,18 +433,17 @@ public:
     });
 
     // Connections to controller.
-    QObject::connect(
-      &controller, &QtUpdateController::updateDownloadErrorChanged, this, [errorLabel](QtUpdater::ErrorCode error) {
-        const auto errorStr = QString::number(static_cast<int>(error));
-        const auto text = tr("Error code: %1").arg(errorStr);
-        errorLabel->setText(text);
-      });
+    QObject::connect(&controller, &Controller::updateDownloadErrorChanged, this, [errorLabel](UpdaterError error) {
+      const auto errorStr = QString::number(static_cast<int>(error));
+      const auto text = tr("Error code: %1").arg(errorStr);
+      errorLabel->setText(text);
+    });
   }
 };
 
 class DownloadingSuccessPage : public QWidget {
 public:
-  DownloadingSuccessPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  DownloadingSuccessPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -498,7 +491,7 @@ public:
 
 class InstallingPage : public QWidget {
 public:
-  InstallingPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  InstallingPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -551,7 +544,7 @@ public:
 
 class InstallingFailPage : public QWidget {
 public:
-  InstallingFailPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  InstallingFailPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     setLayout(layout);
@@ -594,18 +587,17 @@ public:
     });
 
     // Connections to controller.
-    QObject::connect(
-      &controller, &QtUpdateController::updateInstallationErrorChanged, this, [errorLabel](QtUpdater::ErrorCode error) {
-        const auto errorStr = QString::number(static_cast<int>(error));
-        const auto text = tr("Error code: %1").arg(errorStr);
-        errorLabel->setText(text);
-      });
+    QObject::connect(&controller, &Controller::updateInstallationErrorChanged, this, [errorLabel](UpdaterError error) {
+      const auto errorStr = QString::number(static_cast<int>(error));
+      const auto text = tr("Error code: %1").arg(errorStr);
+      errorLabel->setText(text);
+    });
   }
 };
 
 class InstallingSuccessPage : public QWidget {
 public:
-  InstallingSuccessPage(QtUpdateController& controller, QWidget* parent = nullptr)
+  InstallingSuccessPage(Controller& controller, QWidget* parent = nullptr)
     : QWidget(parent)
     , _controller(controller) {
     auto* layout = new QVBoxLayout(this);
@@ -642,7 +634,7 @@ public:
     });
 
     // Connections to controller.
-    QObject::connect(&controller, &QtUpdateController::latestVersionChanged, this, [this]() {
+    QObject::connect(&controller, &Controller::latestVersionChanged, this, [this]() {
       const auto latestVersion = _controller.latestVersion();
       _label->setText(tr("The installation of version %1 succeeded.").arg(latestVersion));
     });
@@ -656,25 +648,22 @@ private:
     const auto latestVersionDate = dateToString(_controller.latestVersionDate());
     const auto text =
       tr("You have version <b>%1</b> (released on %2).<br/>Version <b>%3</b> is available (released on %4).")
-        .arg(currentVersion)
-        .arg(currentVersionDate)
-        .arg(latestVersion)
-        .arg(latestVersionDate);
+        .arg(currentVersion, currentVersionDate, latestVersion, latestVersionDate);
     _label->setText(text);
   }
 
   QLabel* _label;
-  QtUpdateController& _controller;
+  Controller& _controller;
 };
 } // namespace
 
-QtUpdateWidget::QtUpdateWidget(QtUpdateController& controller, QWidget* parent)
+QtUpdateWidget::QtUpdateWidget(Controller& controller, QWidget* parent)
   : QWidget(parent)
   , _controller(controller) {
   setupUi();
 
   // Connections to controller.
-  QObject::connect(&_controller, &QtUpdateController::stateChanged, this, [this]() {
+  QObject::connect(&_controller, &Controller::stateChanged, this, [this]() {
     const auto state = _controller.state();
     const auto widget = _pages.contains(state) ? _pages.value(state) : nullptr;
     assert(widget != nullptr);
@@ -683,7 +672,7 @@ QtUpdateWidget::QtUpdateWidget(QtUpdateController& controller, QWidget* parent)
     }
   });
 
-  QObject::connect(&_controller, &QtUpdateController::closeDialogRequested, this, [this]() {
+  QObject::connect(&_controller, &Controller::closeDialogRequested, this, [this]() {
     close();
   });
 }
@@ -719,57 +708,57 @@ void QtUpdateWidget::setupUi() {
   {
     auto* page = new StartPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::None, page);
+    _pages.insert(Controller::State::None, page);
   }
   {
     auto* page = new CheckingPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::Checking, page);
+    _pages.insert(Controller::State::Checking, page);
   }
   {
     auto* page = new CheckingFailPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::CheckingFail, page);
+    _pages.insert(Controller::State::CheckingFail, page);
   }
   {
     auto* page = new CheckingSuccessPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::CheckingSuccess, page);
+    _pages.insert(Controller::State::CheckingSuccess, page);
   }
   {
     auto* page = new CheckingUpToDatePage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::CheckingUpToDate, page);
+    _pages.insert(Controller::State::CheckingUpToDate, page);
   }
   {
     auto* page = new DownloadingPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::Downloading, page);
+    _pages.insert(Controller::State::Downloading, page);
   }
   {
     auto* page = new DownloadingFailPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::DownloadingFail, page);
+    _pages.insert(Controller::State::DownloadingFail, page);
   }
   {
     auto* page = new DownloadingSuccessPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::DownloadingSuccess, page);
+    _pages.insert(Controller::State::DownloadingSuccess, page);
   }
   {
     auto* page = new InstallingPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::Installing, page);
+    _pages.insert(Controller::State::Installing, page);
   }
   {
     auto* page = new InstallingFailPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::InstallingFail, page);
+    _pages.insert(Controller::State::InstallingFail, page);
   }
   {
     auto* page = new InstallingSuccessPage(_controller, _stackedWidget);
     _stackedWidget->addWidget(page);
-    _pages.insert(QtUpdateController::State::InstallingSuccess, page);
+    _pages.insert(Controller::State::InstallingSuccess, page);
   }
 
   // Fix the size.
@@ -788,4 +777,4 @@ void QtUpdateWidget::setupUi() {
   });
   addAction(closeAction);
 }
-} // namespace oclero
+} // namespace oclero::qtupdater

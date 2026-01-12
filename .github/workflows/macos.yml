@@ -17,17 +17,19 @@ jobs:
 
     steps:
       - name: Check Out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
-          version: "5.15.2"
+          version: "6.10.1"
           host: mac
           target: desktop
+          arch: clang_64
+          modules: "qtwebsockets qthttpserver"
 
       - name: Configure CMake
-        run: cmake --preset macos -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=OFF -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="-"
+        run: cmake --preset macos
 
       - name: Build library
         run: cmake --build --preset macos

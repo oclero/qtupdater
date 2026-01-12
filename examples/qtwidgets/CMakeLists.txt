@@ -1,31 +1,36 @@
-find_package(Qt5
+find_package(Qt6
   REQUIRED
     Core
     Network
     Widgets
 )
 
-add_executable(QtWidgetsUpdaterExample WIN32 MACOSX_BUNDLE)
-target_sources(QtWidgetsUpdaterExample PRIVATE
+qt_add_executable(QtWidgetsUpdaterExample WIN32 MACOSX_BUNDLE
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/QtUpdateWidget.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/QtUpdateWidget.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/resources.qrc
+  ${CMAKE_CURRENT_SOURCE_DIR}/QtUpdateWidget.h
+)
+
+qt_add_resources(QtWidgetsUpdaterExample "resources"
+  PREFIX "/example"
+  BASE ${CMAKE_CURRENT_SOURCE_DIR}
+  FILES
+    icon.ico
 )
 target_link_libraries(QtWidgetsUpdaterExample
   PRIVATE
     oclero::QtUpdater
-    Qt5::Core
-    Qt5::Network
-    Qt5::Widgets
+    Qt6::Core
+    Qt6::Network
+    Qt6::Widgets
 )
 
 set_target_properties(QtWidgetsUpdaterExample PROPERTIES
   INTERNAL_CONSOLE OFF
   EXCLUDE_FROM_ALL ON
   FOLDER examples
-  AUTOMOC ON
-	AUTORCC ON
+  MACOSX_BUNDLE_GUI_IDENTIFIER "com.oclero.QtWidgetsUpdaterExample"
+  MACOSX_BUNDLE_BUNDLE_NAME "QtWidgetsUpdaterExample"
 )
 
 ############# Minimal example ends here #############
